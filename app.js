@@ -258,7 +258,7 @@
     } catch(e) { showToast(e.message); btn.disabled = false; }
   });
   const pageViews = {
-    overview: { title: "Overview", show: ["welcome", "voice-agent-card", "composer-card", "section-heading", "metrics", "work-grid", "footer"] },
+    overview: { title: "Overview", show: ["welcome", "voice-agent-card", "composer-card", "section-heading", "metrics", "work-grid", "plan-panel", "agent-panel", "footer"] },
     roadmap: { title: "My Roadmap", show: ["composer-card", "work-grid", "plan-panel", "footer"] },
     activity: { title: "Activity", show: ["work-grid", "agent-panel", "footer"] },
     history: { title: "Roadmap History", show: ["history-panel", "footer"] }
