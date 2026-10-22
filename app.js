@@ -3,6 +3,7 @@
   const form = $("goal-form"), goalInput = $("goal-input"), planBtn = $("plan-btn");
   let currentPlan = null, currentTasks = [], busy = false, toastTimer, currentUser = null, authMode = "login";
   let agentRoadmap = null, agentCompletedDays = [];
+  let roadmapHistory = [];
   const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
   const dateFromISO = (value) => { const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(Number(m[1]), Number(m[2])-1, Number(m[3])) : null; };
   const formatDate = (date, options={weekday:"short", month:"short", day:"numeric"}) => new Intl.DateTimeFormat(undefined, options).format(date);
@@ -60,6 +61,46 @@
     const text = payload.result?.content?.find(part => part.type === "text")?.text; if (!text) throw new Error("The planning tool returned no result.");
     try { return JSON.parse(text); } catch (_) { return {message:text}; }
   }
+  function renderRoadmapHistory(data) {
+    roadmapHistory = data.plans || [];
+    const summary = data.summary || {};
+    $("history-total").textContent = summary.totalRoadmaps || 0;
+    $("history-completed").textContent = summary.completedRoadmaps || 0;
+    $("history-active").textContent = summary.inProgressRoadmaps || 0;
+    $("history-count").textContent = summary.totalRoadmaps || 0;
+    const list = $("history-list");
+    if (!roadmapHistory.length) {
+      list.innerHTML = '<div class="history-empty">Your saved roadmaps will appear here as you create goals. Start with a goal above, and your journey will be recorded automatically.</div>';
+      return;
+    }
+    list.innerHTML = roadmapHistory.map(plan => {
+      const completed = plan.status === "completed";
+      const pct = Number(plan.completion_percent || 0);
+      const date = plan.created_at ? formatDate(new Date(plan.created_at), {year:"numeric",month:"short",day:"numeric"}) : "Date unavailable";
+      return '<article class="history-item"><div><h3>'+escapeHtml(plan.goal)+'</h3><p>Created '+escapeHtml(date)+' · '+Number(plan.completed_tasks)+'/'+Number(plan.total_tasks)+' tasks complete · '+pct+'%</p><div class="history-progress" aria-label="'+pct+' percent complete"><span style="width:'+pct+'%"></span></div></div><div class="history-item-actions"><span class="history-status '+(completed?'':'active')+'">'+(completed?'Completed':'In progress')+'</span><button type="button" class="history-open" data-history-plan="'+escapeHtml(plan.id)+'">Open roadmap ↗</button></div></article>';
+    }).join("");
+    list.querySelectorAll("[data-history-plan]").forEach(button => button.addEventListener("click", () => openHistoricalPlan(button.dataset.historyPlan)));
+  }
+  async function refreshRoadmapHistory() {
+    try {
+      const data = await request("/api/history");
+      renderRoadmapHistory(data);
+    } catch (error) {
+      $("history-list").innerHTML = '<div class="history-empty">'+escapeHtml(error.message || "Could not load roadmap history.")+'</div>';
+    }
+  }
+  async function openHistoricalPlan(planId) {
+    try {
+      const data = await request("/api/plan?planId="+encodeURIComponent(planId));
+      currentPlan = data.plan;
+      currentTasks = data.tasks || [];
+      goalInput.value = currentPlan?.goal || "";
+      renderTasks();
+      log("Previous roadmap opened", currentPlan.goal, "success", "HISTORY RESTORED");
+      $("plan-panel").scrollIntoView({behavior:"smooth",block:"start"});
+      showToast("Previous roadmap loaded. You can continue tracking its tasks.");
+    } catch (error) { showToast(error.message || "Could not open that roadmap."); }
+  }
   function addRoadmapCard(body, roadmap) {
     const card = document.createElement("div"); card.className = "voice-result-card";
     const head = document.createElement("div"); head.className = "voice-result-head";
@@ -83,7 +124,13 @@
     if (action === "roadmap" && goal.length < 8) { addAgentMessage("assistant", "Tell me a little more about what you want to achieve so I can prepare a useful roadmap."); return; }
     agentSend.disabled = true; const previousLabel = agentSend.innerHTML; agentSend.innerHTML = "Working… <span>◌</span>";
     try {
-      if (action === "roadmap") {
+      if (action === "history") {
+        const data = await request("/api/history");
+        renderRoadmapHistory(data);
+        const summary = data.summary || {};
+        addAgentMessage("assistant", "You have created "+(summary.totalRoadmaps||0)+" roadmaps so far. "+(summary.completedRoadmaps||0)+" are completed and "+(summary.inProgressRoadmaps||0)+" are still in progress. I have refreshed your saved roadmap history below.", "SAVED ROADMAP HISTORY");
+        $("history-panel").scrollIntoView({behavior:"smooth",block:"start"});
+      } else if (action === "roadmap") {
         addAgentMessage("assistant", "I am mapping your goal into seven focused steps. You can review the result before adding it to your workspace.", "MCP · GENERATE GOAL ROADMAP");
         const result = await callMcpTool("generate_goal_roadmap", {goal:goal,startDate:todayISO()}); agentRoadmap = result; agentCompletedDays = [];
         const body = addAgentMessage("assistant", "Your roadmap is ready: " + (result.tasks?.length || 7) + " focused actions for “" + (result.goal || goal) + "”. Review the steps below, then choose whether to bring this goal into your workspace.", "ROADMAP READY · HUMAN REVIEW");
@@ -111,8 +158,14 @@
     } catch (error) { addAgentMessage("assistant", error.message || "I could not complete that request. Please try again.", "PLEASE TRY AGAIN"); }
     finally { agentSend.disabled = false; agentSend.innerHTML = previousLabel; }
   }
-  function classifyAgentIntent(message) { const text = message.toLowerCase(); if (/\b(progress|percentage|percent|how much.*done|how many.*complete|status)\b/.test(text)) return "progress"; if (/\b(next|what should i do|recommend|suggest|first step|up next)\b/.test(text)) return "next"; return "roadmap"; }
-  if (agentForm) agentForm.addEventListener("submit", event => { event.preventDefault(); const message = agentInput.value.trim(); if (!message) return; addAgentMessage("user", message, "YOUR REQUEST"); agentInput.value = ""; runAgentAction(classifyAgentIntent(message), message); });
+  function classifyAgentIntent(message) {
+    const text = message.toLowerCase();
+    if (/\b(history|previous roadmaps?|past goals?|all my goals|how many goals|roadmaps? (have i|did i) (complete|finish|create)|completed roadmaps?)\b/.test(text)) return "history";
+    if (/\b(progress|percentage|percent|how much.*done|how many.*complete|status)\b/.test(text)) return "progress";
+    if (/\b(next|what should i do|recommend|suggest|first step|up next)\b/.test(text)) return "next";
+    return "roadmap";
+  }
+  if (agentForm) agentForm.addEventListener("submit", event => { event.preventDefault(); const message = agentInput.value.trim(); if (!message) return; addAgentMessage("user", message, "YOUR REQUEST"); agentInput.value = ""; const intent = classifyAgentIntent(message); runAgentAction(intent, intent === "roadmap" ? message : undefined); });
   document.querySelectorAll("[data-voice-prompt]").forEach(button => button.addEventListener("click", () => { const prompt = button.dataset.voicePrompt || ""; agentInput.value = prompt; addAgentMessage("user", prompt, "QUICK PROMPT"); runAgentAction("roadmap", prompt); }));
   document.querySelectorAll("[data-voice-action]").forEach(button => button.addEventListener("click", () => { const action = button.dataset.voiceAction; addAgentMessage("user", action === "next" ? "What should I do next?" : "Show my plan progress.", "QUICK ACTION"); runAgentAction(action); }));
   const agentMic = $("voice-agent-mic");
@@ -162,7 +215,7 @@
         const action = status === "done" ? "reopen" : "complete";
         const result = await request("/api/task", {taskId:btn.dataset.task, action});
         currentTasks = currentTasks.map(t => t.id === result.task.id ? result.task : t);
-        renderTasks(); updateMetrics();
+        renderTasks(); updateMetrics(); refreshRoadmapHistory();
         log(action === "reopen" ? "Action reopened" : "Action completed", result.task.title, action === "reopen" ? "normal" : "success", "PERSISTED TO TASK STORE");
         showToast(result.message);
       } catch(e) { showToast(e.message); btn.disabled = false; }
@@ -188,7 +241,7 @@
       currentPlan = data.plan; currentTasks = data.tasks || [];
       log("Plan created", "Generated "+currentTasks.length+" daily actions with categories and time estimates.", "success", "STEP 2 OF 3");
       log("Waiting for your approval", "No task was marked approved or completed. You stay in control.", "normal", "STEP 3 OF 3");
-      renderTasks(); showToast("Your action plan is ready for review."); speak("Your seven day action plan is ready. Please review it and approve before marking any action complete.");
+      renderTasks(); refreshRoadmapHistory(); showToast("Your action plan is ready for review."); speak("Your seven day action plan is ready. Please review it and approve before marking any action complete.");
       $("plan-panel").scrollIntoView({behavior:"smooth",block:"nearest"});
     } catch(err) { log("Could not create the plan", err.message, "normal", "ACTION NEEDED"); showToast(err.message); }
     finally { busy = false; planBtn.disabled = false; planBtn.innerHTML = '<span>Build my action plan</span><span>↗</span>'; }
@@ -199,12 +252,14 @@
     try {
       const data = await request("/api/task", {taskId:"all", action:"approve_all"});
       currentTasks = data.tasks || [];
-      renderTasks(); log("Plan approved by you", data.message, "success", "APPROVAL RECORDED"); showToast(data.message); speak("Plan approved. You can now mark actions complete as you do them.");
+      renderTasks(); refreshRoadmapHistory(); log("Plan approved by you", data.message, "success", "APPROVAL RECORDED"); showToast(data.message); speak("Plan approved. You can now mark actions complete as you do them.");
     } catch(e) { showToast(e.message); btn.disabled = false; }
   });
   $("nav-overview").addEventListener("click", () => { $("top").scrollIntoView({behavior:"smooth",block:"start"}); window.scrollTo({top:0,behavior:"smooth"}); });
   $("nav-plan").addEventListener("click", () => $("plan-panel").scrollIntoView({behavior:"smooth",block:"start"}));
   $("nav-activity").addEventListener("click", () => $("activity-list").scrollIntoView({behavior:"smooth",block:"center"}));
+  $("nav-history").addEventListener("click", () => { refreshRoadmapHistory(); $("history-panel").scrollIntoView({behavior:"smooth",block:"start"}); });
+  $("refresh-history").addEventListener("click", refreshRoadmapHistory);
   $("help-btn").addEventListener("click", () => $("help-dialog").showModal());
   $("close-help").addEventListener("click", () => $("help-dialog").close());
   $("help-dialog").addEventListener("click", (e) => { if (e.target === $("help-dialog")) $("help-dialog").close(); });
@@ -278,6 +333,7 @@
     $("avatar-letter").textContent = (user.display_name || user.email || "L").trim().charAt(0).toUpperCase();
     renderWeekDates();
     loadLatest();
+    refreshRoadmapHistory();
   }
   function leaveWorkspace() {
     currentUser = null;
