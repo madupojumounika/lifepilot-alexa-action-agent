@@ -1,11 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const form = $("goal-form"), goalInput = $("goal-input"), planBtn = $("plan-btn");
-  let currentPlan = null, currentTasks = [], busy = false, toastTimer;
-  const SESSION_KEY = "lifepilot_session_id";
-  const createSessionId = () => (window.crypto && typeof window.crypto.randomUUID === "function") ? window.crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c === "x" ? r : (r&3|8)).toString(16); });
-  let sessionId;
-  try { sessionId = localStorage.getItem(SESSION_KEY); if (!sessionId) { sessionId = createSessionId(); localStorage.setItem(SESSION_KEY, sessionId); } } catch (_) { sessionId = createSessionId(); }
+  let currentPlan = null, currentTasks = [], busy = false, toastTimer, currentUser = null, authMode = "login";
   const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
   const dateFromISO = (value) => { const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(Number(m[1]), Number(m[2])-1, Number(m[3])) : null; };
   const formatDate = (date, options={weekday:"short", month:"short", day:"numeric"}) => new Intl.DateTimeFormat(undefined, options).format(date);
@@ -36,9 +32,7 @@
     body.append(strong,p,small); row.append(marker,body); $("activity-list").prepend(row);
   };
   async function request(path, body) {
-    const url = body ? path : `${path}?sessionId=${encodeURIComponent(sessionId)}`;
-    const payload = body ? {...body, sessionId} : undefined;
-    const response = await fetch(url, {method: body ? "POST" : "GET", headers: body ? {"Content-Type":"application/json"} : {}, body: payload ? JSON.stringify(payload) : undefined});
+    const response = await fetch(path, {method: body ? "POST" : "GET", credentials: "same-origin", headers: body ? {"Content-Type":"application/json"} : {}, body: body ? JSON.stringify(body) : undefined});
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Something went wrong. Please try again.");
     return data;
@@ -173,6 +167,87 @@
       showToast("Starter goal added. Make it yours, then build your roadmap.");
     });
   });
-  renderWeekDates();
-  loadLatest();
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    const signup = mode === "signup";
+    $("auth-title").textContent = signup ? "Create your workspace." : "Welcome back.";
+    $("auth-subtitle").textContent = signup ? "Create an account to keep your plans private and synced." : "Sign in to continue working toward your goals.";
+    $("auth-name-wrap").hidden = !signup;
+    $("auth-name").required = signup;
+    $("auth-submit").textContent = signup ? "Create account" : "Log in";
+    $("auth-toggle-copy").textContent = signup ? "Already have an account?" : "New to LifePilot?";
+    $("auth-toggle").textContent = signup ? "Log in" : "Create an account";
+    $("auth-password").autocomplete = signup ? "new-password" : "current-password";
+    $("auth-error").textContent = "";
+  }
+  function enterWorkspace(user) {
+    currentUser = user;
+    $("auth-screen").hidden = true;
+    $("app-shell").hidden = false;
+    $("profile-name").textContent = user.display_name || "My workspace";
+    $("profile-email").textContent = user.email || "Signed in";
+    $("avatar-letter").textContent = (user.display_name || user.email || "L").trim().charAt(0).toUpperCase();
+    renderWeekDates();
+    loadLatest();
+  }
+  function leaveWorkspace() {
+    currentUser = null;
+    currentPlan = null;
+    currentTasks = [];
+    $("app-shell").hidden = true;
+    $("auth-screen").hidden = false;
+    $("goal-input").value = "";
+    $("activity-list").innerHTML = '<div class="activity-item"><div class="activity-marker muted">·</div><div><strong>Ready for your first goal</strong><p>Your plan and its changes will appear here, so you always know what happened.</p><small>WAITING FOR INPUT</small></div></div>';
+    renderTasks();
+    setAuthMode("login");
+  }
+  $("auth-toggle").addEventListener("click", () => setAuthMode(authMode === "login" ? "signup" : "login"));
+  $("auth-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = $("auth-submit");
+    submit.disabled = true;
+    $("auth-error").textContent = "";
+    const body = {action:authMode, name:$("auth-name").value.trim(), email:$("auth-email").value.trim(), password:$("auth-password").value};
+    try {
+      const data = await request("/api/auth", body);
+      $("auth-password").value = "";
+      $("auth-form").reset();
+      enterWorkspace(data.user);
+      showToast(data.message || "You're signed in.");
+    } catch (error) {
+      $("auth-error").textContent = error.message;
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  async function signOut() {
+    const button = $("logout-btn");
+    button.disabled = true;
+    try {
+      await request("/api/auth", {action:"logout"});
+      leaveWorkspace();
+      showToast("You've signed out.");
+    } catch (error) {
+      showToast(error.message);
+    } finally {
+      button.disabled = false;
+    }
+  }
+  $("logout-btn").addEventListener("click", signOut);
+  $("logout-top").addEventListener("click", signOut);
+  async function initializeAuth() {
+    setAuthMode("login");
+    $("auth-screen").hidden = false;
+    $("app-shell").hidden = true;
+    try {
+      const response = await fetch("/api/auth", {credentials:"same-origin", cache:"no-store"});
+      const data = await response.json();
+      if (response.ok && data.user) enterWorkspace(data.user);
+    } catch (_) {
+      $("auth-error").textContent = "Unable to connect. Please refresh and try again.";
+    }
+  }
+
+  initializeAuth();
 })();
