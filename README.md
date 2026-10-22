@@ -1,140 +1,283 @@
 # LifePilot — AI Action Agent
 
-LifePilot is a goal-to-action planning prototype inspired by personal assistant experiences such as Alexa+. It converts a goal into a proposed seven-day roadmap, keeps the user in control through a review step, and tracks task progress in a web interface. It also exposes planning tools through a self-hosted Model Context Protocol (MCP) Streamable HTTP endpoint and includes a portable agent skill that describes how a compatible agent should use those tools.
+**Turn a goal into a clear plan. Keep a human in control. Make progress visible.**
 
-- **Live application:** https://lifepilot-alexa-action-agent.vercel.app/
-- **MCP endpoint:** https://lifepilot-alexa-action-agent.vercel.app/api/mcp
-- **Agent skill:** [skills/lifepilot-goal-planning/SKILL.md](skills/lifepilot-goal-planning/SKILL.md)
-- **Repository:** https://github.com/madupojumounika/lifepilot-alexa-action-agent
-- **Deployment branch:** `production`
+LifePilot is a web-based goal-planning prototype inspired by personal assistant experiences. It helps users turn a goal into a proposed seven-day roadmap, review and approve the plan, track tasks, and monitor progress. A separate, self-hosted **Model Context Protocol (MCP)** endpoint exposes planning and progress tools to compatible MCP clients.
 
-## What it does
+> **Project scope:** LifePilot is an independent prototype, not an official Alexa+ integration. Its roadmap generation currently uses deterministic templates—not a live LLM—and the MCP tools do not execute actions or access a user's saved web-app plans.
 
-- **Seven-day planning:** Generate a day-by-day roadmap from a goal.
-- **Goal-specific templates:** Includes interview preparation, hackathons, exams, job searches, and general goals.
-- **Human approval:** Review a proposed plan before approving tasks.
-- **Task tracking:** Mark approved tasks complete or reopen completed tasks.
-- **Persistent storage:** Save plans and task updates in PostgreSQL.
-- **Personal workspaces:** Email/password signup and login with per-account plan ownership.
-- **Voice interaction:** Browser speech recognition and speech synthesis where supported.
-- **Activity tracking:** View actions and progress in the workspace.
-- **MCP tools:** Let a compatible MCP client request a roadmap, get a next-action recommendation, or calculate progress from supplied statuses.
-- **Agent skill:** Provides a reusable goal-planning workflow and safety instructions for compatible agents.
+<p align="center">
+  <a href="https://lifepilot-alexa-action-agent.vercel.app/"><strong>🚀 Open the Live Demo</strong></a>
+  &nbsp; • &nbsp;
+  <a href="https://lifepilot-alexa-action-agent.vercel.app/api/mcp"><strong>🔌 MCP Endpoint</strong></a>
+  &nbsp; • &nbsp;
+  <a href="https://github.com/madupojumounika/lifepilot-alexa-action-agent"><strong>💻 Source Code</strong></a>
+</p>
 
-## MCP server
+---
 
-LifePilot exposes an MCP server at `/api/mcp` using the official TypeScript MCP SDK and Streamable HTTP transport. The endpoint exposes these tools:
+## Contents
 
-- `generate_goal_roadmap`: Returns a proposed seven-day roadmap for a goal.
-- `recommend_next_action`: Recommends the next unfinished task based on completed day numbers supplied by the caller.
-- `calculate_plan_progress`: Calculates totals and completion percentage from task statuses supplied by the caller.
+- [Why LifePilot?](#why-lifepilot)
+- [Key Features](#key-features)
+- [How It Works](#how-it-works)
+- [MCP Server](#mcp-server)
+- [Agent Skill](#agent-skill)
+- [Architecture](#architecture)
+- [Technology Stack](#technology-stack)
+- [Run Locally](#run-locally)
+- [API Routes](#api-routes)
+- [Security and Data Boundaries](#security-and-data-boundaries)
+- [Current Limitations](#current-limitations)
+- [Roadmap](#roadmap)
+- [Demo Walkthrough](#demo-walkthrough)
+- [License](#license)
 
-It also exposes the `lifepilot://capabilities` resource describing the prototype's capabilities and limitations.
+## Why LifePilot?
 
-The MCP tools are currently **planning and calculation tools**. They do not mutate the signed-in user's stored plans, access external services, or execute actions on the user's behalf. They use deterministic, goal-specific templates rather than a live generative AI model. The endpoint is intended for demonstration and does not currently implement OAuth or per-user MCP authorization; do not send private user data to it.
+Big goals can feel overwhelming when the next step is unclear. LifePilot is built around a simple workflow: **define a goal → review a practical plan → take one step at a time → track progress**.
 
-### Try the MCP endpoint
+The project combines a lightweight productivity web app with an MCP interface, making it possible to explore both a user-facing planning experience and a reusable tool-based workflow for compatible AI clients.
 
-Use a compatible MCP client or MCP Inspector and configure the server URL as:
+## Key Features
+
+### Goal planning
+- Generate a structured, seven-day roadmap from a user's goal.
+- Use goal-specific templates for software engineering interview preparation, hackathons, exams, job searches, software projects, and general goals.
+- Organize the roadmap into day-by-day tasks.
+
+### Human-controlled task management
+- Review a proposed plan before approving it.
+- Mark tasks as complete and reopen them when needed.
+- Keep progress visible instead of treating a generated plan as an automatically executed action.
+
+### Personal workspace
+- Sign up and sign in with an email and password.
+- Keep plans associated with the authenticated account.
+- Persist plan and task updates in PostgreSQL.
+- Review activity and progress in the web interface.
+
+### Browser voice interaction
+- Use browser speech recognition and speech synthesis where the browser and device support them.
+- Voice capabilities depend on platform permissions and browser support.
+
+### MCP tools for compatible clients
+- Request a seven-day roadmap.
+- Get a recommendation for the next unfinished task.
+- Calculate task status totals and completion percentage.
+- Inspect the `lifepilot://capabilities` resource for the server's declared scope.
+
+## How It Works
+
+1. **Set a goal.** Describe what you want to achieve.
+2. **Generate a roadmap.** LifePilot selects a suitable deterministic template and prepares a seven-day plan.
+3. **Review the plan.** The proposed plan is presented for human review.
+4. **Approve and act.** Approve the plan and update tasks as you make progress.
+5. **Track progress.** View task states and activity in the web app.
+6. **Use MCP separately.** A compatible MCP client can call the stateless planning and calculation tools exposed by the MCP endpoint.
+
+The MCP tools are a separate interface: they currently calculate results from the input provided by the caller and do **not** read or update the signed-in user's saved web-app plan.
+
+## MCP Server
+
+**Endpoint:** [https://lifepilot-alexa-action-agent.vercel.app/api/mcp](https://lifepilot-alexa-action-agent.vercel.app/api/mcp)
+
+LifePilot exposes a stateless MCP server using the official TypeScript MCP SDK and Streamable HTTP transport.
+
+### Available tools
+
+| Tool | Purpose | Data behavior |
+|---|---|---|
+| `generate_goal_roadmap` | Generates a proposed seven-day roadmap for a supplied goal. | Returns template-based output; does not save a plan. |
+| `recommend_next_action` | Recommends the next unfinished day/task based on the goal and completed day numbers supplied by the caller. | Computes from the request; does not update task state. |
+| `calculate_plan_progress` | Calculates totals for pending, approved, and done statuses, plus completion percentage. | Computes from supplied statuses; does not access the database. |
+
+The server also exposes the `lifepilot://capabilities` resource describing the prototype's capabilities and limitations.
+
+### Test with MCP Inspector
+
+1. Start MCP Inspector using a compatible Node.js environment.
+2. Connect to the endpoint below using Streamable HTTP.
+3. Confirm that the server initializes and lists its tools and resources.
+4. Run each tool with valid input and inspect the returned result.
 
 ```text
 https://lifepilot-alexa-action-agent.vercel.app/api/mcp
 ```
 
-Call `generate_goal_roadmap` with a goal such as `Prepare for a software engineering interview`, then inspect the seven-day task list. The endpoint must be deployed before it can be tested remotely.
+Example inputs:
 
-## Agent skill
+**`generate_goal_roadmap`**
+```json
+{
+  "goal": "Prepare for a software engineering interview"
+}
+```
 
-The portable skill is located at `skills/lifepilot-goal-planning/SKILL.md`. It tells a compatible agent how to call the MCP tools, present the proposed roadmap, recommend a next step, and calculate progress without claiming actions were executed. The skill file is an instruction bundle; it does not by itself provide a live AI model or connect to Alexa+.
+**`recommend_next_action`**
+```json
+{
+  "goal": "Prepare for a software engineering interview",
+  "completedDays": [1, 2]
+}
+```
 
-## Important scope note
+**`calculate_plan_progress`**
+```json
+{
+  "statuses": ["done", "done", "pending", "pending", "approved", "pending", "pending"]
+}
+```
 
-LifePilot is an independent web prototype inspired by personal assistant experiences. It is **not an official Alexa+ integration** and does not connect to an Alexa device, Amazon Bedrock, or the gated Alexa+ add-on tools. The MCP server provides a standards-based integration surface for compatible MCP clients; it does not itself turn the web app into an Alexa+ device integration.
+These examples demonstrate tool behavior; they are not evidence of a live generative AI model or external action execution.
 
-## Technology
+## Agent Skill
 
-- **Frontend:** HTML, CSS, vanilla JavaScript
-- **Backend:** Vercel serverless API routes on Node.js
-- **MCP:** `@modelcontextprotocol/sdk`, Streamable HTTP transport
-- **Agent instructions:** Portable `SKILL.md`
-- **Database:** PostgreSQL hosted on Neon
-- **Database driver:** Node.js `pg` package
-- **Validation:** Zod
-- **Hosting:** Vercel
+The portable agent-skill instructions are available at:
+
+[`skills/lifepilot-goal-planning/SKILL.md`](skills/lifepilot-goal-planning/SKILL.md)
+
+The skill explains how a compatible agent should request a roadmap, present it as a proposal, recommend a next step, and calculate progress without claiming that work has been completed automatically. The skill is an instruction file; it does not include or host an AI model by itself.
 
 ## Architecture
 
 ```text
-Browser
-  ├── Frontend: HTML, CSS, JavaScript
-  ├── /api/auth ── signup, login, logout, session
-  ├── /api/plan ── create and retrieve personal plans
-  ├── /api/task ── approve, complete, reopen tasks
-  └── /api/mcp ── MCP tools over Streamable HTTP
-                       │
-          ┌────────────┴────────────┐
-          ▼                         ▼
-    MCP planning tools         Neon PostgreSQL
-    (template-based)            (web app data)
+                         ┌──────────────────────────┐
+                         │       Web Browser        │
+                         │   HTML / CSS / JavaScript│
+                         └────────────┬─────────────┘
+                                      │
+                ┌─────────────────────┼─────────────────────┐
+                │                     │                     │
+                ▼                     ▼                     ▼
+         /api/auth              /api/plan              /api/task
+     Signup / login /       Create and retrieve    Approve / complete /
+      session / logout       personal plans          reopen tasks
+                │                     │                     │
+                └─────────────────────┼─────────────────────┘
+                                      ▼
+                              Neon PostgreSQL
+                           Web-app user and plan data
+
+        Compatible MCP Client ── Streamable HTTP ──> /api/mcp
+                                                    ├─ generate_goal_roadmap
+                                                    ├─ recommend_next_action
+                                                    ├─ calculate_plan_progress
+                                                    └─ lifepilot://capabilities
+                                                       (stateless computations;
+                                                        separate from user DB)
 ```
 
-The MCP tools intentionally do not write to the user's database. Existing web-app plan/task operations use authenticated account ownership.
+## Technology Stack
 
-## Run locally
+| Layer | Technologies |
+|---|---|
+| Frontend | HTML, CSS, vanilla JavaScript |
+| Server-side API | Node.js, Vercel serverless functions |
+| Database | PostgreSQL, Neon |
+| Database driver | `pg` |
+| MCP server | `@modelcontextprotocol/sdk`, Streamable HTTP |
+| Input validation | Zod |
+| Deployment | Vercel |
+| Agent workflow | Portable Markdown `SKILL.md` |
 
-Requirements: Node.js 20+, a PostgreSQL database, and the Vercel CLI.
+## Run Locally
 
-1. Clone the repository and install dependencies:
+### Prerequisites
 
-   ```bash
-   git clone https://github.com/madupojumounika/lifepilot-alexa-action-agent.git
-   cd lifepilot-alexa-action-agent
-   git checkout production
-   npm install
-   ```
+- Node.js 20 or later
+- A PostgreSQL database (for example, a Neon project)
+- Vercel CLI
+- Git
 
-2. Create a PostgreSQL database and run `vercel-schema.sql` in its SQL editor. For authentication, also run `auth-migration.sql`.
+### 1. Clone the repository
 
-3. Create a private `.env.local` file with your database connection:
+```bash
+git clone https://github.com/madupojumounika/lifepilot-alexa-action-agent.git
+cd lifepilot-alexa-action-agent
+git checkout production
+npm install
+```
 
-   ```env
-   DATABASE_URL=your_postgresql_connection_string
-   ```
+### 2. Prepare the database
 
-4. Start the local Vercel development server:
+Create a PostgreSQL database. Run the SQL in `vercel-schema.sql` using your database's SQL editor. For account authentication, also run `auth-migration.sql`.
 
-   ```bash
-   npx vercel dev
-   ```
+### 3. Configure the environment
 
-5. Test the web app at the local URL printed by Vercel. The MCP endpoint will be available at `/api/mcp`.
+Create a local `.env.local` file in the project root:
 
-Never commit credentials or database connection strings. If a database connection string is exposed, rotate its password and update the deployment environment variable.
+```env
+DATABASE_URL=your_postgresql_connection_string
+```
 
-## API endpoints
+Replace the placeholder with your own connection string. Keep `.env.local` private and never commit credentials.
 
-- `/api/auth`: Account signup, login, logout, and session checks.
-- `/api/plan`: Create or retrieve a user's latest plan.
-- `/api/task`: Approve a plan, complete a task, or reopen a completed task.
-- `/api/mcp`: Stateless MCP endpoint exposing roadmap and progress tools over Streamable HTTP.
+### 4. Start the development server
 
-## Limitations and future work
+```bash
+npx vercel dev
+```
 
-- Replace deterministic templates with model-backed planning when a suitable model and credentials are available.
-- Add OAuth or another appropriate authorization flow before exposing private account operations through MCP.
-- Add automated MCP protocol/integration tests, rate limiting, monitoring, and improved error handling.
-- Explore supported Alexa+ integration options when access and requirements permit.
-- Improve accessibility and test across more browsers and devices.
+Open the local URL printed by Vercel. The web app routes and MCP endpoint will be available on that local server, including `/api/mcp`.
 
-## Demo checklist
+### 5. Verify the MCP endpoint
 
-1. Open the [live application](https://lifepilot-alexa-action-agent.vercel.app/).
-2. Sign in, create a goal-based roadmap, and review it.
-3. Approve the plan, complete a task, and reopen it.
-4. Refresh the app to demonstrate persistence.
-5. Demonstrate the MCP endpoint using a compatible MCP client and call `generate_goal_roadmap`.
-6. Explain that the web app persists user plans, while the MCP tools currently provide template-based planning and calculations only.
+Connect MCP Inspector or another compatible MCP client to the local `/api/mcp` route. For remote testing, use the deployed endpoint shown above.
+
+> **Database safety:** Never publish your database connection string, passwords, session tokens, or MCP Inspector access tokens. If a credential is exposed, rotate it and update the relevant environment variable.
+
+## API Routes
+
+| Route | Responsibility |
+|---|---|
+| `/api/auth` | Account signup, login, logout, and session checks |
+| `/api/plan` | Create or retrieve the authenticated user's plan |
+| `/api/task` | Approve a plan, complete a task, or reopen a completed task |
+| `/api/mcp` | Stateless MCP tools and the capabilities resource |
+
+## Security and Data Boundaries
+
+- Web-app plan and task operations are designed around authenticated account ownership.
+- Passwords are stored as scrypt hashes; session cookies use HTTP-only and SameSite settings.
+- The MCP endpoint currently has no OAuth or per-user MCP authorization.
+- MCP calls do not access or mutate private account data; tools operate on the input supplied by the caller.
+- Do not send personal, confidential, or sensitive information to the unauthenticated MCP endpoint.
+- Keep secrets in environment variables, not source files or screenshots.
+
+This project is a prototype, not a security-audited or production-hardened service.
+
+## Current Limitations
+
+- Roadmap generation is deterministic and template-based; no live generative AI model is currently connected.
+- The web app is not an official Alexa+ integration and does not connect to an Alexa device or Amazon Bedrock.
+- The MCP endpoint provides planning and calculation tools; it does not perform external actions or modify stored web-app plans.
+- The MCP endpoint does not currently provide OAuth or per-user authorization.
+- Rate limiting, monitoring, password recovery, email verification, and a comprehensive automated integration-test suite remain future work.
+- Browser voice features vary by browser, device, permissions, and language support.
+
+## Roadmap
+
+- [ ] Add model-backed planning when a suitable model and secure credentials are available.
+- [ ] Design an authorization flow before exposing any account-specific MCP operations.
+- [ ] Add automated tests for MCP tools, API routes, and critical user flows.
+- [ ] Improve rate limiting, observability, error handling, and recovery flows.
+- [ ] Improve accessibility and expand cross-browser testing.
+- [ ] Explore supported assistant-platform integrations as access and requirements permit.
+
+## Demo Walkthrough
+
+Use the [live application](https://lifepilot-alexa-action-agent.vercel.app/) to demonstrate:
+
+1. Create an account and sign in.
+2. Enter a goal and generate a seven-day roadmap.
+3. Review and approve the proposed plan.
+4. Mark a task complete, then reopen it.
+5. Refresh the page to show that the web-app state persists.
+6. Open MCP Inspector and demonstrate all three tools: roadmap generation, next-action recommendation, and progress calculation.
+
+For a clear demo, explain the distinction between the persistent web app and the stateless MCP tools. Browser voice should only be demonstrated on a supported browser/device with the required permissions.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+This project is licensed under the MIT License. See [`LICENSE`](LICENSE).
