@@ -135,8 +135,9 @@
         addAgentMessage("assistant", "I am mapping your goal into seven focused steps and saving it as a draft in your workspace. You can review and approve every action before tracking progress.", "MCP · GENERATE GOAL ROADMAP");
         const result = await callMcpTool("generate_goal_roadmap", {goal:goal,startDate:todayISO()}); agentRoadmap = result; agentCompletedDays = [];
         const saved = await request("/api/plan", {goal:goal,startDate:todayISO()});
+        currentPlan = saved.plan; currentTasks = saved.tasks || []; renderTasks(); updateMetrics(); refreshRoadmapHistory();
         const body = addAgentMessage("assistant", "Your roadmap is ready and saved to your workspace: " + (result.tasks?.length || 7) + " focused actions for “" + (result.goal || goal) + "”. It is waiting for your review. Open My Roadmap to review and approve the saved tasks.", "ROADMAP SAVED · AWAITING REVIEW");
-        addRoadmapCard(body,result,saved.plan.id); refreshRoadmapHistory(); speak("Your seven day roadmap is saved and ready for review. Open My Roadmap to approve it when you are ready.");
+        addRoadmapCard(body,result,saved.plan.id); setActiveView("roadmap"); speak("Your seven day roadmap is saved and ready for review. Open My Roadmap to approve it when you are ready.");
       } else if (action === "next") {
         const result = await callMcpTool("recommend_next_action", {goal:goal,completedDays:agentCompletedDays}); const next = result.nextAction;
         if (!next) { addAgentMessage("assistant", "You have marked every day complete in this conversation. Review what you learned and choose your next goal.", "MCP · NEXT ACTION"); }
@@ -249,7 +250,8 @@
     finally { busy = false; planBtn.disabled = false; planBtn.innerHTML = '<span>Build my action plan</span><span>↗</span>'; }
   });
   $("approve-btn").addEventListener("click", async () => {
-    if (!currentPlan || !currentTasks.length || currentTasks.some(t => t.status === "pending") === false) return;
+    if (!currentPlan?.id || !currentTasks.length) { showToast("Create or open a saved roadmap before approving it."); setActiveView("roadmap"); return; }
+    if (currentTasks.some(t => t.status === "pending") === false) { showToast("This roadmap has no pending tasks to approve."); return; }
     const btn = $("approve-btn"); btn.disabled = true;
     try {
       const data = await request("/api/task", {taskId:"all", planId:currentPlan.id, action:"approve_all"});
