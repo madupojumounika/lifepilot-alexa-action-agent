@@ -24,6 +24,9 @@ This repository contains a web prototype. It is **not an official Alexa+ integra
 - **Activity history:** Show key actions taken in the current workspace.
 - **Workspace separation:** Use a browser-generated workspace ID to keep different browser sessions' plans separate. This is not user authentication.
 
+- Email/password signup and login with server-side password hashing and HTTP-only session cookies.
+- Per-account plan ownership so users only access their own roadmap and task progress.
+
 ## How it works
 
 1. Enter a goal.
@@ -149,3 +152,10 @@ For a short walkthrough:
 ## License
 
 This project is released under the MIT License. See [LICENSE](LICENSE).
+
+
+## Authentication setup
+
+The authentication feature uses the existing Neon PostgreSQL database. Before deploying the `lifepilot-auth` branch, run `auth-migration.sql` in the Neon SQL Editor. This creates the user and session tables and adds the user ownership column to plans. Existing anonymous demo plans are not automatically assigned to an account.
+
+Accounts use email and password. Passwords are stored as scrypt hashes, not plain text. Session tokens are stored hashed in PostgreSQL and sent to the browser in an HTTP-only, SameSite=Lax cookie with a seven-day expiry. For a public production service, add rate limiting, email verification, password reset, and operational monitoring before inviting broad use.
