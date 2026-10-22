@@ -1,7 +1,7 @@
 # Architecture
 
-Browser UI (HTML / CSS / JavaScript)
-   | POST /api/plan
+Browser UI (HTML / CSS / JavaScript; browser-generated workspace ID)
+   | GET/POST /api/plan + workspace ID
    v
 Plan API --------------------> PostgreSQL: lifepilot_plans
    | creates seven task rows   PostgreSQL: lifepilot_tasks
@@ -12,9 +12,9 @@ Browser UI
 Task API --------------------> set pending tasks to approved
    |
 Browser UI
-   | POST /api/task { action: complete, taskId }
+   | POST /api/task { action: complete/reopen, taskId, sessionId }
    v
-Task API --------------------> validate approved status, persist done
+Task API --------------------> validate workspace + status, persist transition
 
 ## Safety boundary in the demo
 
@@ -23,6 +23,8 @@ Task API --------------------> validate approved status, persist done
 - Only an explicit approve_all action changes pending tasks to approved.
 - Completion is recorded only after an approved task is marked done.
 - The activity log describes these state changes.
+- Plan reads and task mutations are scoped to a browser workspace ID; cross-workspace task access returns not found.
+- Workspace IDs separate casual demo sessions but are not authentication and must not protect sensitive user data.
 
 ## Current implementation limits
 
