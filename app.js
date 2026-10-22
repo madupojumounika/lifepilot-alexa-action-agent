@@ -2,6 +2,7 @@
   const $ = (id) => document.getElementById(id);
   const form = $("goal-form"), goalInput = $("goal-input"), planBtn = $("plan-btn");
   let currentPlan = null, currentTasks = [], busy = false, toastTimer, currentUser = null, authMode = "login";
+  let agentRoadmap = null, agentCompletedDays = [];
   const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
   const dateFromISO = (value) => { const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(Number(m[1]), Number(m[2])-1, Number(m[3])) : null; };
   const formatDate = (date, options={weekday:"short", month:"short", day:"numeric"}) => new Intl.DateTimeFormat(undefined, options).format(date);
@@ -37,6 +38,92 @@
     if (!response.ok) throw new Error(data.error || "Something went wrong. Please try again.");
     return data;
   }
+  // Conversational interface powered by the deployed LifePilot MCP tools.
+  const agentForm = $("voice-agent-form"), agentInput = $("voice-agent-input"), agentSend = $("voice-agent-send");
+  const agentConversation = $("voice-conversation");
+  function addAgentMessage(role, message, stamp) {
+    const item = document.createElement("div"); item.className = "voice-message " + (role === "user" ? "user-message" : "assistant-message");
+    const avatar = document.createElement("span"); avatar.className = "message-avatar"; avatar.textContent = role === "user" ? (currentUser?.display_name || "Y").trim().charAt(0).toUpperCase() : "L";
+    const body = document.createElement("div"); const name = document.createElement("strong"); name.textContent = role === "user" ? "You" : "LifePilot";
+    const paragraph = document.createElement("p"); paragraph.textContent = message; body.append(name, paragraph);
+    if (stamp) { const small = document.createElement("small"); small.textContent = stamp; body.append(small); }
+    item.append(avatar, body); agentConversation.append(item); agentConversation.scrollTop = agentConversation.scrollHeight; return body;
+  }
+  async function callMcpTool(name, args) {
+    const response = await fetch("/api/mcp", {method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json, text/event-stream","MCP-Protocol-Version":"2025-11-25"}, body:JSON.stringify({jsonrpc:"2.0",id:Date.now(),method:"tools/call",params:{name,arguments:args}})});
+    const raw = await response.text(); let payload;
+    try { payload = JSON.parse(raw); } catch (_) { const line = raw.split("\n").find(part => part.startsWith("data:")); if (line) { try { payload = JSON.parse(line.slice(5).trim()); } catch (_) {} } }
+    if (!response.ok) throw new Error(payload?.error?.message || "LifePilot could not reach its planning tools. Please try again.");
+    if (!payload) throw new Error("The planning service returned an unreadable response.");
+    if (payload.error) throw new Error(payload.error.message || "The planning tool returned an error.");
+    if (payload.result?.isError) { const text = payload.result.content?.find(part => part.type === "text")?.text; throw new Error(text || "The planning tool could not complete that request."); }
+    const text = payload.result?.content?.find(part => part.type === "text")?.text; if (!text) throw new Error("The planning tool returned no result.");
+    try { return JSON.parse(text); } catch (_) { return {message:text}; }
+  }
+  function addRoadmapCard(body, roadmap) {
+    const card = document.createElement("div"); card.className = "voice-result-card";
+    const head = document.createElement("div"); head.className = "voice-result-head";
+    const title = document.createElement("span"); title.textContent = "YOUR 7-DAY ROADMAP"; const count = document.createElement("span"); count.textContent = (roadmap.tasks || []).length + " ACTIONS"; head.append(title,count); card.append(head);
+    (roadmap.tasks || []).forEach(task => {
+      const row = document.createElement("div"); row.className = "voice-result-task"; const day = document.createElement("span"); day.textContent = "D" + task.day;
+      const details = document.createElement("div"); const taskTitle = document.createElement("strong"); taskTitle.textContent = task.title;
+      const category = document.createElement("p"); category.textContent = task.category + " · " + task.durationMinutes + " min"; details.append(taskTitle,category);
+      const date = document.createElement("small"); date.textContent = task.date || ("DAY " + task.day); row.append(day,details,date); card.append(row);
+    });
+    const actions = document.createElement("div"); actions.className = "voice-result-actions";
+    const review = document.createElement("button"); review.type = "button"; review.textContent = "Review in my workspace ↗";
+    review.addEventListener("click", () => { goalInput.value = roadmap.goal; form.requestSubmit(); $("composer-title").scrollIntoView({behavior:"smooth",block:"start"}); });
+    const next = document.createElement("button"); next.type = "button"; next.className = "secondary"; next.textContent = "Recommend next step"; next.addEventListener("click", () => runAgentAction("next"));
+    actions.append(review,next); card.append(actions); body.append(card);
+  }
+  async function runAgentAction(action, goalOverride) {
+    if (agentSend.disabled) return;
+    const goal = (goalOverride || agentRoadmap?.goal || goalInput.value || "").trim();
+    if (action !== "roadmap" && !agentRoadmap) { addAgentMessage("assistant", "Start by telling me your goal. I will create a roadmap first, then recommend a next step or calculate progress."); return; }
+    if (action === "roadmap" && goal.length < 8) { addAgentMessage("assistant", "Tell me a little more about what you want to achieve so I can prepare a useful roadmap."); return; }
+    agentSend.disabled = true; const previousLabel = agentSend.innerHTML; agentSend.innerHTML = "Working… <span>◌</span>";
+    try {
+      if (action === "roadmap") {
+        addAgentMessage("assistant", "I am mapping your goal into seven focused steps. You can review the result before adding it to your workspace.", "MCP · GENERATE GOAL ROADMAP");
+        const result = await callMcpTool("generate_goal_roadmap", {goal:goal,startDate:todayISO()}); agentRoadmap = result; agentCompletedDays = [];
+        const body = addAgentMessage("assistant", "Your roadmap is ready: " + (result.tasks?.length || 7) + " focused actions for “" + (result.goal || goal) + "”. Review the steps below, then choose whether to bring this goal into your workspace.", "ROADMAP READY · HUMAN REVIEW");
+        addRoadmapCard(body,result); speak("Your LifePilot roadmap is ready. Review the seven steps and choose whether to bring the goal into your workspace.");
+      } else if (action === "next") {
+        const result = await callMcpTool("recommend_next_action", {goal:goal,completedDays:agentCompletedDays}); const next = result.nextAction;
+        if (!next) { addAgentMessage("assistant", "You have marked every day complete in this conversation. Review what you learned and choose your next goal.", "MCP · NEXT ACTION"); }
+        else {
+          const body = addAgentMessage("assistant", "I suggest starting with Day " + next.day + ": " + next.title + ". It is part of " + next.category + " and is estimated at " + next.durationMinutes + " minutes. Current roadmap progress: " + result.progressPercent + "%.", "MCP · NEXT ACTION RECOMMENDATION");
+          const actions = document.createElement("div"); actions.className = "voice-result-actions";
+          const done = document.createElement("button"); done.type = "button"; done.textContent = "Count Day " + next.day + " complete in this check";
+          done.addEventListener("click", async () => {
+            if (!agentCompletedDays.includes(next.day)) agentCompletedDays.push(next.day);
+            addAgentMessage("assistant", "Day " + next.day + " is counted as complete for this conversational progress check. Use the task controls in your workspace to persist task completion.", "LOCAL CONVERSATION STATE");
+            try { const statuses = Array.from({length:7}, (_,i) => agentCompletedDays.includes(i+1) ? "done" : "pending"); const progress = await callMcpTool("calculate_plan_progress", {statuses:statuses}); addAgentMessage("assistant", "Progress check: " + progress.done + " of " + progress.total + " days complete (" + progress.completionPercent + "%)."); } catch (error) { addAgentMessage("assistant", error.message); }
+          });
+          const progressBtn = document.createElement("button"); progressBtn.type = "button"; progressBtn.className = "secondary"; progressBtn.textContent = "Calculate progress"; progressBtn.addEventListener("click", () => runAgentAction("progress"));
+          actions.append(done,progressBtn); body.append(actions); speak("Your next step is " + next.title + ". It is estimated at " + next.durationMinutes + " minutes.");
+        }
+      } else if (action === "progress") {
+        const statuses = Array.from({length:7}, (_,i) => agentCompletedDays.includes(i+1) ? "done" : "pending"); const result = await callMcpTool("calculate_plan_progress", {statuses:statuses});
+        addAgentMessage("assistant", "Your conversational progress check is " + result.done + " of " + result.total + " days complete (" + result.completionPercent + "%). " + result.pending + " days remain pending. This check uses progress marked in this voice session; saved workspace tasks are tracked separately.", "MCP · PLAN PROGRESS");
+        speak("You have completed " + result.done + " out of " + result.total + " days, which is " + result.completionPercent + " percent.");
+      }
+    } catch (error) { addAgentMessage("assistant", error.message || "I could not complete that request. Please try again.", "PLEASE TRY AGAIN"); }
+    finally { agentSend.disabled = false; agentSend.innerHTML = previousLabel; }
+  }
+  if (agentForm) agentForm.addEventListener("submit", event => { event.preventDefault(); const message = agentInput.value.trim(); if (!message) return; addAgentMessage("user", message, "YOUR REQUEST"); agentInput.value = ""; runAgentAction("roadmap", message); });
+  document.querySelectorAll("[data-voice-prompt]").forEach(button => button.addEventListener("click", () => { const prompt = button.dataset.voicePrompt || ""; agentInput.value = prompt; addAgentMessage("user", prompt, "QUICK PROMPT"); runAgentAction("roadmap", prompt); }));
+  document.querySelectorAll("[data-voice-action]").forEach(button => button.addEventListener("click", () => { const action = button.dataset.voiceAction; addAgentMessage("user", action === "next" ? "What should I do next?" : "Show my plan progress.", "QUICK ACTION"); runAgentAction(action); }));
+  const agentMic = $("voice-agent-mic");
+  if (agentMic) agentMic.addEventListener("click", () => {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) { showToast("Voice input is not supported here. Type your request or try a supported browser."); return; }
+    const recognition = new Recognition(); recognition.lang = "en-US"; recognition.interimResults = false; recognition.maxAlternatives = 1; agentMic.disabled = true; agentMic.textContent = "…";
+    recognition.onresult = event => { const transcript = event.results?.[0]?.[0]?.transcript?.trim(); if (transcript) { agentInput.value = transcript; agentInput.focus(); showToast("Voice captured. Send your request when ready."); } };
+    recognition.onerror = event => showToast(event.error === "not-allowed" ? "Allow microphone access to use voice input." : "I could not capture that. Please try again or type your request.");
+    recognition.onend = () => { agentMic.disabled = false; agentMic.textContent = "◖"; };
+    try { recognition.start(); } catch (_) { agentMic.disabled = false; agentMic.textContent = "◖"; showToast("Voice input could not start. Please try again."); }
+  });
   function updateMetrics() {
     const done = currentTasks.filter(t => t.status === "done").length;
     $("metric-mission").textContent = currentPlan ? (currentPlan.goal.length > 22 ? currentPlan.goal.slice(0,22) + "…" : currentPlan.goal) : "—";
