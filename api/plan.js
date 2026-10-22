@@ -67,10 +67,16 @@ export default async function handler(req, res) {
     if (!user) return res.status(401).json({ error: "Please log in to access your personal workspace." });
     const db = getPool();
     if (req.method === "GET") {
-      const { rows: plans } = await db.query(
-        "SELECT id, goal, start_date, created_at FROM lifepilot_plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
-        [user.id]
-      );
+      const requestedPlanId = String(req.query?.planId || "").trim();
+      const { rows: plans } = requestedPlanId
+        ? await db.query(
+            "SELECT id, goal, start_date, created_at FROM lifepilot_plans WHERE user_id = $1 AND id = $2 LIMIT 1",
+            [user.id, requestedPlanId]
+          )
+        : await db.query(
+            "SELECT id, goal, start_date, created_at FROM lifepilot_plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
+            [user.id]
+          );
       if (!plans.length) return res.status(200).json({ plan: null, tasks: [] });
       const plan = plans[0];
       const { rows: tasks } = await db.query(
