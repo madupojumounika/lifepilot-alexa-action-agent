@@ -1,0 +1,1 @@
+ALTER TABLE lifepilot_plans ADD COLUMN IF NOT EXISTS start_date DATE;
