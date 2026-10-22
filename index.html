@@ -36,6 +36,7 @@
       <button class="nav-item active" id="nav-overview" type="button" aria-current="page"><span class="nav-symbol">▦</span> Overview</button>
       <button class="nav-item" id="nav-plan" type="button"><span class="nav-symbol">☷</span> My roadmap <span class="nav-count" id="nav-count">0</span></button>
       <button class="nav-item" id="nav-activity" type="button"><span class="nav-symbol">↗</span> Activity</button>
+      <button class="nav-item" id="nav-history" type="button"><span class="nav-symbol">◷</span> Roadmap history <span class="nav-count" id="history-count">0</span></button>
       <div class="sidebar-note">
         <span class="note-kicker">THE LIFEPILOT PROMISE</span>
         <div class="note-mark">“</div>
@@ -93,6 +94,15 @@
         <div class="metric-card mission-card"><div class="metric-top"><span>YOUR CURRENT FOCUS</span><span class="metric-icon">↗</span></div><div class="metric-value" id="metric-mission">—</div><div class="metric-note">The goal you’re moving toward</div></div>
         <div class="metric-card"><div class="metric-top"><span>NEXT STEPS</span><span class="metric-icon">☷</span></div><div class="metric-value" id="metric-actions">0</div><div class="metric-note">Actions in your roadmap</div></div>
         <div class="metric-card progress-card"><div class="metric-top"><span>DONE BY YOU</span><span class="metric-icon">✓</span></div><div class="metric-value"><span id="metric-done">0</span><small id="metric-percent">0% complete</small></div><div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div></div>
+      </section>
+      <section class="history-panel panel" id="history-panel" aria-labelledby="history-title">
+        <div class="panel-heading"><div><div class="eyebrow small-eyebrow">YOUR JOURNEY SO FAR</div><h2 id="history-title">Roadmap history</h2></div><button class="secondary" id="refresh-history" type="button">Refresh history ↻</button></div>
+        <div class="history-summary" id="history-summary">
+          <div class="history-stat"><strong id="history-total">0</strong><span>Roadmaps created</span></div>
+          <div class="history-stat"><strong id="history-completed">0</strong><span>Roadmaps completed</span></div>
+          <div class="history-stat"><strong id="history-active">0</strong><span>In progress</span></div>
+        </div>
+        <div class="history-list" id="history-list"><div class="history-empty">Your saved roadmaps will appear here as you create goals.</div></div>
       </section>
       <section class="work-grid">
         <div class="panel plan-panel" id="plan-panel"><div class="panel-heading"><div><div class="eyebrow small-eyebrow">YOUR ROADMAP</div><h2>One week, made manageable.</h2></div><span class="muted-label" id="plan-status">WAITING FOR A GOAL</span></div>
