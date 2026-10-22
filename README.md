@@ -2,7 +2,7 @@
 
 **LifePilot is a goal-to-action planning prototype inspired by assistant experiences such as Alexa+.** It converts a user's goal into a structured seven-day plan, asks for approval before tasks can be completed, and tracks progress in a simple web interface.
 
-- **Live application:** https://lifepilot-alexa-action-agent-m86qjsmtw.vercel.app/
+- **Live application:** https://lifepilot-alexa-action-agent.vercel.app/
 - **Repository:** https://github.com/madupojumounika/lifepilot-alexa-action-agent
 - **Deployment branch:** `production`
 
@@ -77,7 +77,7 @@ The browser creates a UUID to identify its workspace. This ID is used to scope p
    ```bash
    git clone https://github.com/madupojumounika/lifepilot-alexa-action-agent.git
    cd lifepilot-alexa-action-agent
-   git checkout vercel-deploy
+   git checkout production
    npm install
    ```
 
@@ -105,7 +105,7 @@ The browser creates a UUID to identify its workspace. This ID is used to scope p
 
 ## Deployment
 
-The production frontend and API are deployed on Vercel from the `vercel-deploy` branch.
+The production frontend and API are deployed on Vercel from the `production` branch.
 
 To deploy your own instance:
 
@@ -139,7 +139,7 @@ Supports plan approval and task state changes. Operations are scoped to the supp
 
 For a short walkthrough:
 
-1. Open the [live application](https://lifepilot-alexa-action-agent-m86qjsmtw.vercel.app/).
+1. Open the [live application](https://lifepilot-alexa-action-agent.vercel.app/).
 2. Enter a realistic goal and generate the plan.
 3. Review the proposed tasks and approve the plan.
 4. Complete one task, then reopen it.
