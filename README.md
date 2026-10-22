@@ -1,69 +1,151 @@
 # LifePilot — Alexa+ Action Agent
 
-LifePilot is an **Alexa+-style web simulation** that turns a user's goal into a visible, reviewable action plan. The demo focuses on one core promise: an assistant should help people make progress while keeping them in control.
+**LifePilot is a goal-to-action planning prototype inspired by assistant experiences such as Alexa+.** It converts a user's goal into a structured seven-day plan, asks for approval before tasks can be completed, and tracks progress in a simple web interface.
 
-## Demo
+- **Live application:** https://lifepilot-alexa-action-agent-m86qjsmtw.vercel.app/
+- **Repository:** https://github.com/madupojumounika/lifepilot-alexa-action-agent
+- **Deployment branch:** `vercel-deploy`
 
-- App: https://lifepilot-alexa.hatchable.site
-- Project status: working web simulation; deployed demo backed by PostgreSQL.
+## Overview
 
-> **Important scope note:** This submission currently simulates an Alexa+-style interaction in a web interface. It is not an official Alexa+ integration, does not run an MCP server, and does not currently call Amazon Bedrock or another live generative AI model. Planning uses a small deterministic demo workflow. Do not describe these integrations as implemented.
+Many productivity tools produce suggestions but leave users to decide how to turn them into manageable steps. LifePilot demonstrates a transparent workflow: describe a goal, review a proposed plan, approve it, and track progress as tasks are completed.
 
-## What works
+This repository contains a web prototype. It is **not an official Alexa+ integration** and does not currently connect to an Alexa device, execute external actions, run an MCP server, or use Amazon Bedrock or another live generative AI model. Plan generation currently uses deterministic goal templates.
 
-- Create a seven-day goal plan for software interviews, hackathons, exams/study, job searches, software projects, or general goals.
-- Capture a goal using browser-native speech recognition where the browser supports it, and hear spoken guidance through speech synthesis.
-- Persist the plan and tasks in PostgreSQL.
-- Review the proposed tasks before approving the plan.
-- Prevent task completion while the plan is pending approval.
-- Mark approved tasks complete, reopen completed tasks, and persist each status change.
-- Show real local calendar dates for the current seven-day window and the date associated with each task.
-- Keep plans isolated by a browser-generated workspace ID so visitors in separate browsers do not overwrite each other's plans (this is workspace separation, not account authentication).
-- Restore the latest plan and task statuses after reloading.
-- View an activity log that explains the demo's actions.
+## Features
 
-## User flow
+- **Seven-day planning:** Generate a day-by-day action plan from a goal.
+- **Goal-specific templates:** Includes workflows for interview preparation, hackathons, exams and study, job searches, software projects, and general goals.
+- **Human approval step:** Review the plan before approving tasks.
+- **Task progress:** Approve the plan, mark approved tasks complete, and reopen completed tasks.
+- **Persistent storage:** Save plans and task states in PostgreSQL.
+- **Date-aware plans:** Display calendar dates for the plan's seven-day window.
+- **Voice interaction:** Use browser speech recognition and speech synthesis where supported by the browser and device.
+- **Activity history:** Show key actions taken in the current workspace.
+- **Workspace separation:** Use a browser-generated workspace ID to keep different browser sessions' plans separate. This is not user authentication.
 
-1. Enter a goal and constraints.
-2. LifePilot creates seven daily action items.
-3. Review the task list and time estimates.
-4. Approve the plan explicitly.
-5. Mark an approved task complete, then reopen it if needed.
-6. Refresh the page and verify the stored state and date labels.
+## How it works
+
+1. Enter a goal.
+2. LifePilot selects a matching deterministic template and creates seven daily tasks.
+3. Review the tasks and estimated durations.
+4. Explicitly approve the plan.
+5. Mark approved tasks complete as you make progress, or reopen a completed task.
+6. Refresh the application to check that the plan and task states persist.
+
+The application does not access a user's calendar, send messages, or perform actions in external services.
+
+## Technology
+
+- **Frontend:** HTML, CSS, and vanilla JavaScript
+- **Backend:** Vercel serverless API routes
+- **Database:** PostgreSQL hosted on Neon
+- **Hosting:** Vercel
+- **Database driver:** Node.js `pg` package
 
 ## Architecture
 
-- Responsive HTML/CSS/JavaScript interface.
-- Backend endpoints: /api/plan and /api/task.
-- PostgreSQL tables: lifepilot_plans and lifepilot_tasks.
-- Browser-generated workspace IDs isolate each browser's demo plan and task actions.
-- SQL migrations are in migrations.
+```text
+Browser
+  ├── Static frontend: index.html, styles.css, app.js
+  ├── POST /api/plan  ── create and retrieve plans
+  └── POST /api/task  ── approve, complete, or reopen tasks
+                         │
+                         ▼
+                  Vercel API routes
+                         │
+                         ▼
+                    Neon PostgreSQL
+                    ├── lifepilot_plans
+                    └── lifepilot_tasks
+```
 
-Workspace IDs provide demo-session separation, not account authentication. Do not store sensitive personal data in this prototype.
+The browser creates a UUID to identify its workspace. This ID is used to scope plan and task operations, but it is **not an authentication or authorization system**. Do not store sensitive personal information in this prototype.
 
-The API uses the Hatchable runtime's hatchable database module in the deployed environment. The backend files are not a standalone Express app without adapting that database/runtime integration.
+## Local development
 
-## Run the demo
+### Requirements
 
-Open the live URL, enter a goal, create the plan, approve it, and mark one action complete. Refresh the page to demonstrate persistence. The app does not access your calendar, send messages, or execute external actions.
+- Node.js 20 or later
+- A PostgreSQL database
+- A Vercel account for deployment and local Vercel CLI workflows
 
-## Hackathon demo outline (under 3 minutes)
+### Setup
 
-- 0:00–0:20 — State the problem: assistants often produce suggestions without a transparent action workflow.
-- 0:20–0:50 — Enter a realistic interview-preparation goal and generate the seven-day plan.
-- 0:50–1:20 — Review task categories and estimates, then show that tasks are pending until explicit approval.
-- 1:20–1:50 — Approve the plan and complete one task.
-- 1:50–2:10 — Refresh and show persisted progress.
-- 2:10–2:40 — Explain the approval boundary, activity log, and current simulation scope.
-- 2:40–2:55 — Close with next steps: voice interaction, real AI planning, and supported Alexa+/MCP integration.
+1. Clone the repository and switch to the deployment branch:
 
-## Current limitations and next steps
+   ```bash
+   git clone https://github.com/madupojumounika/lifepilot-alexa-action-agent.git
+   cd lifepilot-alexa-action-agent
+   git checkout vercel-deploy
+   npm install
+   ```
 
-1. Add voice input/output for a more natural assistant-like demo.
-2. Replace deterministic task templates with a model-backed planner after credentials and service access are configured.
-3. If pursuing the Alexa+ simulation track, clearly document the simulation and include source code in the submission.
-4. Add tests and a deployment-specific setup guide before claiming portability outside Hatchable.
+2. Create a PostgreSQL database (for example, using Neon).
+
+3. Run the schema in the database's SQL editor:
+
+   `vercel-schema.sql`
+
+4. Configure the database connection as an environment variable. For local development, create a `.env.local` file:
+
+   ```env
+   DATABASE_URL=your_postgresql_connection_string
+   ```
+
+   Replace the placeholder with your own connection string. Never commit credentials, `.env.local`, or other secrets to Git.
+
+5. Run the application locally with the Vercel CLI:
+
+   ```bash
+   npx vercel dev
+   ```
+
+   If prompted, link the local project to your Vercel project. Keep `.env.local` private.
+
+## Deployment
+
+The production frontend and API are deployed on Vercel from the `vercel-deploy` branch.
+
+To deploy your own instance:
+
+1. Import this GitHub repository into Vercel and select `vercel-deploy` as the production branch.
+2. Create a PostgreSQL database and execute `vercel-schema.sql` against it.
+3. Add `DATABASE_URL` to the Vercel project's Environment Variables. Set it for Production and any other environments you intend to use.
+4. Deploy or redeploy the project.
+5. Open the deployed URL and test plan creation, approval, task completion, reopening, and persistence after refresh.
+
+Never put the database connection string in source code or expose it in screenshots, logs, or public issues. If a connection string is exposed, rotate the database password and update the environment variable.
+
+## API endpoints
+
+### `/api/plan`
+
+Creates a seven-day plan and retrieves the latest plan for the supplied browser workspace. The API validates the goal, date, and workspace ID and stores the plan and its tasks in PostgreSQL.
+
+### `/api/task`
+
+Supports plan approval and task state changes. Operations are scoped to the supplied workspace ID. Supported actions include `approve_all`, `complete`, and `reopen`.
+
+## Limitations and future work
+
+- Replace deterministic templates with model-backed planning when a suitable model and credentials are configured.
+- Add real user authentication and authorization before using this for private or sensitive data.
+- Add automated integration tests and broader browser/device testing.
+- Integrate with supported Alexa+/MCP capabilities only if the chosen platform and hackathon requirements permit it.
+- Improve accessibility, observability, and error recovery as the prototype evolves.
+
+## Demo checklist
+
+For a short walkthrough:
+
+1. Open the [live application](https://lifepilot-alexa-action-agent-m86qjsmtw.vercel.app/).
+2. Enter a realistic goal and generate the plan.
+3. Review the proposed tasks and approve the plan.
+4. Complete one task, then reopen it.
+5. Refresh the page to demonstrate persistence.
+6. Explain the human-approval step and clearly state that planning is currently template-based.
 
 ## License
 
-This repository is released under the MIT License; see `LICENSE` at the repository root.
+This project is released under the MIT License. See [LICENSE](LICENSE).
