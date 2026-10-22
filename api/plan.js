@@ -1,7 +1,7 @@
 import { getPool } from "../lib/db.js";
+import { getAuthenticatedUser } from "../lib/auth.js";
 
 export const config = { runtime: "nodejs" };
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const makeTasks = (goal) => {
   const g = String(goal || "").toLowerCase();
   if (g.includes("interview") || g.includes("software") || g.includes("sde") || g.includes("coding")) return [
@@ -63,14 +63,13 @@ const makeTasks = (goal) => {
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   try {
-    const sessionId = String((req.method === "GET" ? req.query?.sessionId : req.body?.sessionId) || "").trim();
-    if (!UUID_V4.test(sessionId)) return res.status(400).json({ error: "A valid browser session is required. Refresh the page and try again." });
-
+    const user = await getAuthenticatedUser(req);
+    if (!user) return res.status(401).json({ error: "Please log in to access your personal workspace." });
     const db = getPool();
     if (req.method === "GET") {
       const { rows: plans } = await db.query(
-        "SELECT id, goal, start_date, created_at FROM lifepilot_plans WHERE session_id = $1 ORDER BY created_at DESC LIMIT 1",
-        [sessionId]
+        "SELECT id, goal, start_date, created_at FROM lifepilot_plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
+        [user.id]
       );
       if (!plans.length) return res.status(200).json({ plan: null, tasks: [] });
       const plan = plans[0];
@@ -98,8 +97,8 @@ export default async function handler(req, res) {
     try {
       await client.query("BEGIN");
       const { rows: planRows } = await client.query(
-        "INSERT INTO lifepilot_plans (goal, start_date, session_id) VALUES ($1, $2::date, $3) RETURNING id, goal, start_date, created_at",
-        [goal, startDate, sessionId]
+        "INSERT INTO lifepilot_plans (goal, start_date, user_id) VALUES ($1, $2::date, $3) RETURNING id, goal, start_date, created_at",
+        [goal, startDate, user.id]
       );
       const plan = planRows[0];
       const tasks = [];
