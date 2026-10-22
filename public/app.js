@@ -2,6 +2,27 @@
   const $ = (id) => document.getElementById(id);
   const form = $("goal-form"), goalInput = $("goal-input"), planBtn = $("plan-btn");
   let currentPlan = null, currentTasks = [], busy = false, toastTimer;
+  const SESSION_KEY = "lifepilot_session_id";
+  const createSessionId = () => (window.crypto && typeof window.crypto.randomUUID === "function") ? window.crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c === "x" ? r : (r&3|8)).toString(16); });
+  let sessionId;
+  try { sessionId = localStorage.getItem(SESSION_KEY); if (!sessionId) { sessionId = createSessionId(); localStorage.setItem(SESSION_KEY, sessionId); } } catch (_) { sessionId = createSessionId(); }
+  const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+  const dateFromISO = (value) => { const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(Number(m[1]), Number(m[2])-1, Number(m[3])) : null; };
+  const formatDate = (date, options={weekday:"short", month:"short", day:"numeric"}) => new Intl.DateTimeFormat(undefined, options).format(date);
+  function renderWeekDates() {
+    const grid = $("week-grid"); if (!grid) return;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const dates = Array.from({length:7}, (_,i) => { const d = new Date(today); d.setDate(today.getDate()+i); return d; });
+    grid.innerHTML = dates.map((d,i) => `<div class="week-day" title="${formatDate(d,{weekday:"long",year:"numeric",month:"long",day:"numeric"})}"><span>${formatDate(d,{weekday:"short"}).slice(0,1)}</span><strong>${d.getDate()}</strong><i class="day-dot ${i===0?"filled":""}"></i></div>`).join("");
+    const stamp = $("week-range"); if (stamp) stamp.textContent = `${formatDate(dates[0],{month:"short",day:"numeric"})} – ${formatDate(dates[6],{month:"short",day:"numeric"})}`;
+  }
+  function formatTaskDate(task) {
+    let start = dateFromISO(currentPlan?.start_date);
+    if (!start && currentPlan?.created_at) { const created = new Date(currentPlan.created_at); if (!Number.isNaN(created.getTime())) start = new Date(created.getFullYear(),created.getMonth(),created.getDate()); }
+    if (!start) start = new Date();
+    start.setDate(start.getDate() + Math.max(0, Number(task.day_index || 1)-1));
+    return formatDate(start);
+  }
   const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const showToast = (message) => { const el = $("toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 3200); };
   const log = (title, detail, type="normal", stamp="JUST NOW") => {
@@ -15,7 +36,9 @@
     body.append(strong,p,small); row.append(marker,body); $("activity-list").prepend(row);
   };
   async function request(path, body) {
-    const response = await fetch(path, {method: body ? "POST" : "GET", headers: body ? {"Content-Type":"application/json"} : {}, body: body ? JSON.stringify(body) : undefined});
+    const url = body ? path : `${path}?sessionId=${encodeURIComponent(sessionId)}`;
+    const payload = body ? {...body, sessionId} : undefined;
+    const response = await fetch(url, {method: body ? "POST" : "GET", headers: body ? {"Content-Type":"application/json"} : {}, body: payload ? JSON.stringify(payload) : undefined});
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Something went wrong. Please try again.");
     return data;
@@ -46,18 +69,20 @@
       const done = t.status === "done", approved = t.status === "approved";
       const stateClass = done ? "done" : approved ? "approved" : "";
       const icon = done ? "✓" : approved ? "✓" : "·";
-      const buttonLabel = done ? "Completed" : approved ? "Mark done" : "Pending approval";
-      return '<div class="task-row '+(done?'is-done':'')+'"><button class="task-check '+stateClass+'" data-task="'+escapeHtml(t.id)+'" data-status="'+escapeHtml(t.status)+'" aria-label="'+buttonLabel+'">'+icon+'</button><div><div class="task-title">'+escapeHtml(t.title)+'</div><div class="task-meta">'+escapeHtml(t.category)+' · '+Number(t.duration_minutes)+' min</div></div><span class="day-chip">DAY '+Number(t.day_index)+'</span></div>';
+      const buttonLabel = done ? "Reopen task" : approved ? "Mark done" : "Pending approval";
+      return '<div class="task-row '+(done?'is-done':'')+'"><button class="task-check '+stateClass+'" data-task="'+escapeHtml(t.id)+'" data-status="'+escapeHtml(t.status)+'" aria-label="'+buttonLabel+'" title="'+buttonLabel+'">'+icon+'</button><div><div class="task-title">'+escapeHtml(t.title)+'</div><div class="task-meta">'+escapeHtml(t.category)+' · '+Number(t.duration_minutes)+' min · '+escapeHtml(formatTaskDate(t))+'</div></div><span class="day-chip">DAY '+Number(t.day_index)+'</span></div>';
     }).join("");
     list.querySelectorAll(".task-check").forEach(btn => btn.addEventListener("click", async () => {
       const status = btn.dataset.status;
       if (status === "pending") { showToast("Approve the plan before marking actions complete."); return; }
-      if (status === "done") { showToast("This action is already recorded as complete."); return; }
       btn.disabled = true;
       try {
-        const result = await request("/api/task", {taskId:btn.dataset.task, action:"complete"});
+        const action = status === "done" ? "reopen" : "complete";
+        const result = await request("/api/task", {taskId:btn.dataset.task, action});
         currentTasks = currentTasks.map(t => t.id === result.task.id ? result.task : t);
-        renderTasks(); updateMetrics(); log("Action verified", result.task.title, "success", "PERSISTED TO TASK STORE"); showToast(result.message);
+        renderTasks(); updateMetrics();
+        log(action === "reopen" ? "Action reopened" : "Action completed", result.task.title, action === "reopen" ? "normal" : "success", "PERSISTED TO TASK STORE");
+        showToast(result.message);
       } catch(e) { showToast(e.message); btn.disabled = false; }
     }));
     updateMetrics();
@@ -77,7 +102,7 @@
     $("activity-list").innerHTML = "";
     log("Understanding your goal", "Reading your objective and timeline.", "normal", "STEP 1 OF 3");
     try {
-      const data = await request("/api/plan", {goal});
+      const data = await request("/api/plan", {goal, startDate:todayISO()});
       currentPlan = data.plan; currentTasks = data.tasks || [];
       log("Plan created", "Generated "+currentTasks.length+" daily actions with categories and time estimates.", "success", "STEP 2 OF 3");
       log("Waiting for your approval", "No task was marked approved or completed. You stay in control.", "normal", "STEP 3 OF 3");
@@ -95,6 +120,7 @@
       renderTasks(); log("Plan approved by you", data.message, "success", "APPROVAL RECORDED"); showToast(data.message); speak("Plan approved. You can now mark actions complete as you do them.");
     } catch(e) { showToast(e.message); btn.disabled = false; }
   });
+  $("nav-overview").addEventListener("click", () => { $("top").scrollIntoView({behavior:"smooth",block:"start"}); window.scrollTo({top:0,behavior:"smooth"}); });
   $("nav-plan").addEventListener("click", () => $("plan-panel").scrollIntoView({behavior:"smooth",block:"start"}));
   $("nav-activity").addEventListener("click", () => $("activity-list").scrollIntoView({behavior:"smooth",block:"center"}));
   $("help-btn").addEventListener("click", () => $("help-dialog").showModal());
@@ -132,11 +158,11 @@
     recognition.onerror = (event) => showToast(event.error === "not-allowed" ? "Microphone permission was blocked. Allow microphone access and try again." : "I couldn't capture that. Please try again or type your goal.");
     recognition.onend = () => {
       voiceBtn.disabled = false;
-      voiceBtn.textContent = "🎙 Speak";
+      voiceBtn.innerHTML = '<span class="mic-symbol">◔</span> Use voice';
     };
     try { recognition.start(); } catch (e) {
       voiceBtn.disabled = false;
-      voiceBtn.textContent = "🎙 Speak";
+      voiceBtn.innerHTML = '<span class="mic-symbol">◔</span> Use voice';
       showToast("Voice input couldn't start. Please try again.");
     }
   });
@@ -147,5 +173,6 @@
       showToast("Starter goal added. Make it yours, then build your roadmap.");
     });
   });
+  renderWeekDates();
   loadLatest();
 })();
