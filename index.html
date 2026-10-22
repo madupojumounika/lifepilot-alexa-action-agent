@@ -12,7 +12,24 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="app-shell">
+  <section class="auth-screen" id="auth-screen" hidden>
+    <div class="auth-card">
+      <a class="brand auth-brand" href="#" aria-label="LifePilot"><span class="brand-mark"><span></span><span></span><span></span><span></span></span><span class="brand-word">life<span>pilot</span><small>PERSONAL WORKSPACE</small></span></a>
+      <div class="eyebrow"><span class="eyebrow-line"></span> YOUR GOALS. YOUR CALL.</div>
+      <h1 id="auth-title">Welcome back.</h1>
+      <p class="auth-subtitle" id="auth-subtitle">Sign in to continue working toward your goals.</p>
+      <form id="auth-form" autocomplete="on">
+        <div class="auth-field" id="auth-name-wrap" hidden><label for="auth-name">Your name</label><input id="auth-name" name="name" type="text" maxlength="80" autocomplete="name" placeholder="Your name"></div>
+        <div class="auth-field"><label for="auth-email">Email address</label><input id="auth-email" name="email" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com" required></div>
+        <div class="auth-field"><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" minlength="10" maxlength="128" autocomplete="current-password" placeholder="At least 10 characters" required></div>
+        <p class="auth-error" id="auth-error" role="alert" aria-live="polite"></p>
+        <button class="primary-btn auth-submit" id="auth-submit" type="submit">Log in <span class="button-arrow">↗</span></button>
+      </form>
+      <div class="auth-switch"><span id="auth-toggle-copy">New to LifePilot?</span> <button id="auth-toggle" type="button">Create an account</button></div>
+      <p class="auth-footnote">Your plans are linked to your account. Use a unique password you don't use elsewhere.</p>
+    </div>
+  </section>
+  <div class="app-shell" id="app-shell" hidden>
     <aside class="sidebar">
       <a class="brand" href="#top" aria-label="LifePilot home"><span class="brand-mark"><span></span><span></span><span></span><span></span></span><span class="brand-word">life<span>pilot</span><small>PERSONAL WORKSPACE</small></span></a>
       <div class="workspace-label">YOUR SPACE</div>
@@ -28,7 +45,7 @@
       </div>
       <div class="sidebar-bottom">
         <div class="privacy-card"><span class="privacy-icon">✓</span><div><strong>Nothing happens without you</strong><p>Review each step before approving your plan.</p></div></div>
-        <div class="profile"><div class="avatar">L</div><div><strong>My workspace</strong><small>Private demo session</small></div><span class="online-dot"></span></div>
+        <div class="profile"><div class="avatar" id="avatar-letter">L</div><div class="profile-copy"><strong id="profile-name">My workspace</strong><small id="profile-email">Signed in</small></div><button class="logout-btn" id="logout-btn" type="button">Sign out</button></div>
       </div>
     </aside>
     <main class="main" id="top">
