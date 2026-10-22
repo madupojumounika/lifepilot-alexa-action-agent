@@ -9,7 +9,7 @@ LifePilot is a web-based goal-planning prototype inspired by personal assistant 
 <p align="center">
   <a href="https://lifepilot-alexa-action-agent.vercel.app/"><strong>🚀 Open the Live Demo</strong></a>
   &nbsp; • &nbsp;
-  <a href="https://lifepilot-alexa-action-agent.vercel.app/api/mcp"><strong>🔌 MCP Endpoint</strong></a>
+  <a href="https://lifepilot-alexa-action-agent.vercel.app/api/mcp"><strong>🔌 MCP Endpoint (for MCP clients)</strong></a>
   &nbsp; • &nbsp;
   <a href="https://github.com/madupojumounika/lifepilot-alexa-action-agent"><strong>💻 Source Code</strong></a>
 </p>
@@ -80,7 +80,8 @@ The MCP tools are a separate interface: they currently calculate results from th
 
 ## MCP Server
 
-**Endpoint:** [https://lifepilot-alexa-action-agent.vercel.app/api/mcp](https://lifepilot-alexa-action-agent.vercel.app/api/mcp)
+**MCP endpoint (for compatible MCP clients):** [https://lifepilot-alexa-action-agent.vercel.app/api/mcp](https://lifepilot-alexa-action-agent.vercel.app/api/mcp)  
+> This is a protocol endpoint, not a normal webpage. Opening it directly in a browser may show an HTTP content-negotiation error; connect through MCP Inspector or another compatible MCP client instead.
 
 LifePilot exposes a stateless MCP server using the official TypeScript MCP SDK and Streamable HTTP transport.
 
