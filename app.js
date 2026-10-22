@@ -102,7 +102,7 @@
       showToast("Previous roadmap loaded. You can continue tracking its tasks.");
     } catch (error) { showToast(error.message || "Could not open that roadmap."); }
   }
-  function addRoadmapCard(body, roadmap) {
+  function addRoadmapCard(body, roadmap, savedPlanId) {
     const card = document.createElement("div"); card.className = "voice-result-card";
     const head = document.createElement("div"); head.className = "voice-result-head";
     const title = document.createElement("span"); title.textContent = "YOUR 7-DAY ROADMAP"; const count = document.createElement("span"); count.textContent = (roadmap.tasks || []).length + " ACTIONS"; head.append(title,count); card.append(head);
@@ -113,8 +113,8 @@
       const date = document.createElement("small"); date.textContent = task.date || ("DAY " + task.day); row.append(day,details,date); card.append(row);
     });
     const actions = document.createElement("div"); actions.className = "voice-result-actions";
-    const review = document.createElement("button"); review.type = "button"; review.textContent = "Review in my workspace ↗";
-    review.addEventListener("click", () => { goalInput.value = roadmap.goal; form.requestSubmit(); $("composer-title").scrollIntoView({behavior:"smooth",block:"start"}); });
+    const review = document.createElement("button"); review.type = "button"; review.textContent = "Open in My Roadmap ↗";
+    review.addEventListener("click", () => openHistoricalPlan(savedPlanId));
     const next = document.createElement("button"); next.type = "button"; next.className = "secondary"; next.textContent = "Recommend next step"; next.addEventListener("click", () => runAgentAction("next"));
     actions.append(review,next); card.append(actions); body.append(card);
   }
@@ -132,10 +132,11 @@
         addAgentMessage("assistant", "You have created "+(summary.totalRoadmaps||0)+" roadmaps so far. "+(summary.completedRoadmaps||0)+" are completed and "+(summary.inProgressRoadmaps||0)+" are still in progress. I have refreshed your saved roadmap history below.", "SAVED ROADMAP HISTORY");
         setActiveView("history");
       } else if (action === "roadmap") {
-        addAgentMessage("assistant", "I am mapping your goal into seven focused steps. You can review the result before adding it to your workspace.", "MCP · GENERATE GOAL ROADMAP");
+        addAgentMessage("assistant", "I am mapping your goal into seven focused steps and saving it as a draft in your workspace. You can review and approve every action before tracking progress.", "MCP · GENERATE GOAL ROADMAP");
         const result = await callMcpTool("generate_goal_roadmap", {goal:goal,startDate:todayISO()}); agentRoadmap = result; agentCompletedDays = [];
-        const body = addAgentMessage("assistant", "Your roadmap is ready: " + (result.tasks?.length || 7) + " focused actions for “" + (result.goal || goal) + "”. Review the steps below, then choose whether to bring this goal into your workspace.", "ROADMAP READY · HUMAN REVIEW");
-        addRoadmapCard(body,result); speak("Your LifePilot roadmap is ready. Review the seven steps and choose whether to bring the goal into your workspace.");
+        const saved = await request("/api/plan", {goal:goal,startDate:todayISO()});
+        const body = addAgentMessage("assistant", "Your roadmap is ready and saved to your workspace: " + (result.tasks?.length || 7) + " focused actions for “" + (result.goal || goal) + "”. It is waiting for your review. Open My Roadmap to review and approve the saved tasks.", "ROADMAP SAVED · AWAITING REVIEW");
+        addRoadmapCard(body,result,saved.plan.id); refreshRoadmapHistory(); speak("Your seven day roadmap is saved and ready for review. Open My Roadmap to approve it when you are ready.");
       } else if (action === "next") {
         const result = await callMcpTool("recommend_next_action", {goal:goal,completedDays:agentCompletedDays}); const next = result.nextAction;
         if (!next) { addAgentMessage("assistant", "You have marked every day complete in this conversation. Review what you learned and choose your next goal.", "MCP · NEXT ACTION"); }
