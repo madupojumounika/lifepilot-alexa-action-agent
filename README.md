@@ -1,18 +1,20 @@
-# LifePilot — AI Action Agent
+# LifePilot — Goal Planning Agent for the Alexa+ Track
 
-**Turn a goal into a clear plan. Keep a human in control. Make progress visible.**
+**Turn goals into actionable plans. Keep people in control. Make progress measurable.**
 
-LifePilot is a web-based goal-planning prototype inspired by personal assistant experiences. It helps users turn a goal into a proposed seven-day roadmap, review and approve the plan, track tasks, and monitor progress. A separate, self-hosted **Model Context Protocol (MCP)** endpoint exposes planning and progress tools to compatible MCP clients.
-
-> **Project scope:** LifePilot is an independent prototype, not an official Alexa+ integration. Its roadmap generation currently uses deterministic templates—not a live LLM—and the MCP tools do not execute actions or access a user's saved web-app plans.
+LifePilot helps people break an ambitious goal into a practical seven-day roadmap, review the proposed plan, and track progress one task at a time. It combines a persistent goal-planning web app with a remotely hosted **Model Context Protocol (MCP) server** that exposes planning and progress tools to compatible MCP clients.
 
 <p align="center">
-  <a href="https://lifepilot-alexa-action-agent.vercel.app/"><strong>🚀 Open the Live Demo</strong></a>
+  <a href="https://lifepilot-alexa-action-agent.vercel.app/"><strong>🚀 Try the Live App</strong></a>
   &nbsp; • &nbsp;
-  <a href="https://lifepilot-alexa-action-agent.vercel.app/api/mcp"><strong>🔌 MCP Endpoint (for MCP clients)</strong></a>
+  <a href="https://lifepilot-alexa-action-agent.vercel.app/api/mcp"><strong>🔌 MCP Endpoint</strong></a>
   &nbsp; • &nbsp;
   <a href="https://github.com/madupojumounika/lifepilot-alexa-action-agent"><strong>💻 Source Code</strong></a>
 </p>
+
+<p align="center"><strong>Amazon Developer Hackathon 2026 · Alexa+ Track · Self-hosted MCP approach</strong></p>
+
+> **Scope:** LifePilot is an independent hackathon prototype built for the Alexa+ track. It is not currently connected to an Alexa+ device or official Alexa+ developer console. Roadmap generation uses deterministic goal-specific templates rather than a live LLM. The MCP tools are stateless planning and calculation tools; they do not execute external actions or access a signed-in user's saved web-app plans.
 
 ---
 
@@ -32,6 +34,27 @@ LifePilot is a web-based goal-planning prototype inspired by personal assistant 
 - [Roadmap](#roadmap)
 - [Demo Walkthrough](#demo-walkthrough)
 - [License](#license)
+
+## Built for the Amazon Alexa+ Hackathon
+
+The Alexa+ track accepts a self-hosted MCP server implementing MCP specification version **2025-11-25 or later over Streamable HTTP**, or a simulated experience built in a web app. LifePilot follows the self-hosted MCP-server approach. See the [official hackathon rules](https://amazonappdev2026.devpost.com/rules) and [official FAQ](https://amazonappdev2026.devpost.com/details/faqs).
+
+### What is implemented
+
+- A remotely deployed MCP endpoint at `/api/mcp`.
+- The official TypeScript MCP SDK and Streamable HTTP transport.
+- Three registered tools individually tested in MCP Inspector.
+- A `lifepilot://capabilities` resource describing the server's scope.
+- A separate web app for persistent, user-reviewed goal plans.
+
+### What is not claimed
+
+- No official Alexa+ device, account-linking, or developer-console integration.
+- No Amazon Bedrock or live generative model.
+- No OAuth or per-user authentication on the MCP endpoint.
+- No automatic execution of real-world actions.
+
+These boundaries are documented so the demo shows exactly what is implemented.
 
 ## Why LifePilot?
 
@@ -259,6 +282,7 @@ This project is a prototype, not a security-audited or production-hardened servi
 
 ## Roadmap
 
+- [ ] Add a polished conversational web interface that calls the real MCP tools.
 - [ ] Add model-backed planning when a suitable model and secure credentials are available.
 - [ ] Design an authorization flow before exposing any account-specific MCP operations.
 - [ ] Add automated tests for MCP tools, API routes, and critical user flows.
