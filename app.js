@@ -221,7 +221,7 @@
       submit.disabled = false;
     }
   });
-  $("logout-btn").addEventListener("click", async () => {
+  async function signOut() {
     const button = $("logout-btn");
     button.disabled = true;
     try {
@@ -233,7 +233,9 @@
     } finally {
       button.disabled = false;
     }
-  });
+  }
+  $("logout-btn").addEventListener("click", signOut);
+  $("logout-top").addEventListener("click", signOut);
   async function initializeAuth() {
     setAuthMode("login");
     $("auth-screen").hidden = false;
