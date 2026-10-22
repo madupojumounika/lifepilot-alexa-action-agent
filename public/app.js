@@ -140,5 +140,12 @@
       showToast("Voice input couldn't start. Please try again.");
     }
   });
+  document.querySelectorAll(".starter-chip[data-goal]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      goalInput.value = chip.dataset.goal || "";
+      goalInput.focus();
+      showToast("Starter goal added. Make it yours, then build your roadmap.");
+    });
+  });
   loadLatest();
 })();
