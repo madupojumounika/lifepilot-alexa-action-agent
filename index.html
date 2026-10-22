@@ -54,6 +54,34 @@
         <div class="welcome-copy"><div class="eyebrow"><span class="eyebrow-line"></span> A LITTLE CLARITY GOES A LONG WAY</div><h1>Make room for<br><em>real progress.</em></h1><p>Big goals get easier when the next step is clear. Tell us what you’re working toward and build a plan that works for your life.</p><div class="welcome-meta"><span class="meta-check">✓</span> You stay in charge at every step <span class="meta-divider">·</span> Built for follow-through</div></div>
         <div class="hero-card" aria-label="Your week, made manageable"><div class="hero-card-top"><span>THE WEEK AHEAD</span><span class="hero-stamp" id="week-range">THIS WEEK</span></div><div class="week-grid" id="week-grid" aria-label="Today and the next six days"></div><div class="hero-card-bottom"><div><strong>One step at a time.</strong><p>Progress is built, not wished for.</p></div><span class="arrow-stamp">↗</span></div><div class="hero-scribble" aria-hidden="true">MAKE IT<br>HAPPEN.</div></div>
       </section>
+      <section class="voice-agent-card" aria-labelledby="voice-agent-title">
+        <div class="voice-agent-top">
+          <div>
+            <div class="section-index"><span>AI</span><span class="index-line"></span><span>YOUR CONVERSATIONAL ACTION AGENT</span></div>
+            <h2 id="voice-agent-title">Meet LifePilot Voice.</h2>
+            <p class="voice-agent-intro">Speak naturally, turn your goal into a seven-day roadmap, and ask for the next step. You stay in control.</p>
+          </div>
+          <div class="voice-orb-wrap" aria-hidden="true"><div class="voice-orb"><span></span><span></span><span></span><span></span></div><small>READY TO LISTEN</small></div>
+        </div>
+        <div class="voice-agent-body">
+          <div class="voice-conversation" id="voice-conversation" role="log" aria-live="polite" aria-label="LifePilot conversation">
+            <div class="voice-message assistant-message"><span class="message-avatar">L</span><div><strong>LifePilot</strong><p>Hi! What would you like to make happen? I can build a roadmap, recommend your next action, or calculate your progress.</p><small>YOUR GOAL. YOUR CALL.</small></div></div>
+          </div>
+          <div class="voice-quick-actions" aria-label="Try a prompt">
+            <button type="button" data-voice-prompt="Help me prepare for a software engineering interview in 7 days.">Interview prep <span>↗</span></button>
+            <button type="button" data-voice-prompt="Help me finish my hackathon project before the deadline.">Hackathon plan <span>↗</span></button>
+            <button type="button" data-voice-action="next">What should I do next? <span>↗</span></button>
+            <button type="button" data-voice-action="progress">Show my plan progress <span>↗</span></button>
+          </div>
+          <form class="voice-composer" id="voice-agent-form">
+            <label class="sr-only" for="voice-agent-input">Ask LifePilot for a roadmap or next action</label>
+            <textarea id="voice-agent-input" rows="1" maxlength="600" placeholder="Tell LifePilot what you want to achieve…" required></textarea>
+            <button type="button" class="voice-listen-btn" id="voice-agent-mic" aria-label="Speak to LifePilot" title="Speak to LifePilot">◖</button>
+            <button type="submit" class="voice-send-btn" id="voice-agent-send">Ask LifePilot <span>↗</span></button>
+          </form>
+          <div class="voice-agent-foot"><span><i></i> MCP tools connected</span><span>Voice availability depends on your browser.</span></div>
+        </div>
+      </section>
       <section class="composer-card" aria-labelledby="composer-title">
         <div class="section-index"><span>01</span><span class="index-line"></span><span>START WITH WHAT MATTERS</span></div>
         <div class="composer-head"><div class="composer-title-wrap"><h2 id="composer-title">What would you like to make happen?</h2><p>Tell us the goal, your timeline, and what your week looks like.</p></div><span class="composer-badge">YOUR GOAL <b>→</b> YOUR ROADMAP</span></div>

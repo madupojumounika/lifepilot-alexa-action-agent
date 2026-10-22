@@ -1,8 +1,8 @@
-# LifePilot — Goal Planning Agent for the Alexa+ Track
+# LifePilot — Conversational Goal Planning Agent
 
-**Turn goals into actionable plans. Keep people in control. Make progress measurable.**
+**A voice-first planning experience. Clear next steps. Progress you control.**
 
-LifePilot helps people break an ambitious goal into a practical seven-day roadmap, review the proposed plan, and track progress one task at a time. It combines a persistent goal-planning web app with a remotely hosted **Model Context Protocol (MCP) server** that exposes planning and progress tools to compatible MCP clients.
+LifePilot turns a goal into a practical seven-day roadmap, lets people explore their next step through a conversational voice-agent interface, and keeps the final decision in human hands. The experience combines a persistent planning workspace with a remotely hosted **Model Context Protocol (MCP) server** for reusable goal-planning and progress tools.
 
 <p align="center">
   <a href="https://lifepilot-alexa-action-agent.vercel.app/"><strong>🚀 Try the Live App</strong></a>
@@ -12,15 +12,16 @@ LifePilot helps people break an ambitious goal into a practical seven-day roadma
   <a href="https://github.com/madupojumounika/lifepilot-alexa-action-agent"><strong>💻 Source Code</strong></a>
 </p>
 
-<p align="center"><strong>Amazon Developer Hackathon 2026 · Alexa+ Track · Self-hosted MCP approach</strong></p>
+<p align="center"><strong>Amazon Developer Hackathon 2026 · Alexa+ Track · Conversational UX + Self-hosted MCP</strong></p>
 
-> **Scope:** LifePilot is an independent hackathon prototype built for the Alexa+ track. It is not currently connected to an Alexa+ device or official Alexa+ developer console. Roadmap generation uses deterministic goal-specific templates rather than a live LLM. The MCP tools are stateless planning and calculation tools; they do not execute external actions or access a signed-in user's saved web-app plans.
+> **Track approach:** LifePilot combines an Alexa+-inspired conversational web experience with a self-hosted MCP server, goal-specific planning, and a persistent workspace where people review and approve their plans.
 
 ---
 
 ## Contents
 
 - [Why LifePilot?](#why-lifepilot)
+- [Conversational Voice Agent](#conversational-voice-agent)
 - [Key Features](#key-features)
 - [How It Works](#how-it-works)
 - [MCP Server](#mcp-server)
@@ -30,14 +31,13 @@ LifePilot helps people break an ambitious goal into a practical seven-day roadma
 - [Run Locally](#run-locally)
 - [API Routes](#api-routes)
 - [Security and Data Boundaries](#security-and-data-boundaries)
-- [Current Limitations](#current-limitations)
 - [Roadmap](#roadmap)
 - [Demo Walkthrough](#demo-walkthrough)
 - [License](#license)
 
 ## Built for the Amazon Alexa+ Hackathon
 
-The Alexa+ track accepts a self-hosted MCP server implementing MCP specification version **2025-11-25 or later over Streamable HTTP**, or a simulated experience built in a web app. LifePilot follows the self-hosted MCP-server approach. See the [official hackathon rules](https://amazonappdev2026.devpost.com/rules) and [official FAQ](https://amazonappdev2026.devpost.com/details/faqs).
+The Alexa+ track supports a self-hosted MCP server implementing MCP specification version **2025-11-25 or later over Streamable HTTP**, as well as a simulated experience built in a web app. LifePilot combines these approaches with a conversational web interface and its deployed MCP tools. See the [official hackathon rules](https://amazonappdev2026.devpost.com/rules) and [official FAQ](https://amazonappdev2026.devpost.com/details/faqs).
 
 ### What is implemented
 
@@ -47,14 +47,22 @@ The Alexa+ track accepts a self-hosted MCP server implementing MCP specification
 - A `lifepilot://capabilities` resource describing the server's scope.
 - A separate web app for persistent, user-reviewed goal plans.
 
-### What is not claimed
+### Track implementation
 
-- No official Alexa+ device, account-linking, or developer-console integration.
-- No Amazon Bedrock or live generative model.
-- No OAuth or per-user authentication on the MCP endpoint.
-- No automatic execution of real-world actions.
+LifePilot demonstrates the track through a conversational web experience backed by a self-hosted MCP server using Streamable HTTP. The current roadmap engine uses goal-specific templates, and the MCP tools provide reusable planning and progress calculations. The experience keeps users in control: proposed plans can be reviewed in the workspace before task tracking begins.
 
-These boundaries are documented so the demo shows exactly what is implemented.
+## Conversational Voice Agent
+
+LifePilot Voice brings a voice-first, assistant-style interaction into the existing workspace. Users can type a request or use supported browser speech recognition, choose guided prompts, and see the MCP-backed result directly in the conversation.
+
+- **Natural goal input:** describe the outcome you want to achieve.
+- **Roadmap cards:** view seven day-by-day actions with categories, dates, and time estimates.
+- **Next-action guidance:** ask LifePilot to recommend the next unfinished step.
+- **Progress calculation:** calculate completion from the days marked in the current conversation.
+- **Human-controlled handoff:** send a proposed goal into the main workspace to review and approve before tracking it there.
+- **Spoken responses:** hear short responses through browser speech synthesis when available.
+
+The interface calls the deployed `/api/mcp` endpoint using JSON-RPC over Streamable HTTP. Voice input depends on browser support and microphone permission. Conversational progress is session-local; the main workspace remains the source for persistent task tracking.
 
 ## Why LifePilot?
 
@@ -63,6 +71,12 @@ Big goals can feel overwhelming when the next step is unclear. LifePilot is buil
 The project combines a lightweight productivity web app with an MCP interface, making it possible to explore both a user-facing planning experience and a reusable tool-based workflow for compatible AI clients.
 
 ## Key Features
+
+### Conversational agent experience
+- Interact through a dedicated assistant-style conversation panel.
+- Start with interview-prep and hackathon quick prompts, or enter a custom goal.
+- Use the live MCP endpoint for roadmap generation, next-action recommendations, and progress calculations.
+- Use browser voice input and spoken responses where supported.
 
 ### Goal planning
 - Generate a structured, seven-day roadmap from a user's goal.
@@ -271,14 +285,9 @@ Connect MCP Inspector or another compatible MCP client to the local `/api/mcp` r
 
 This project is a prototype, not a security-audited or production-hardened service.
 
-## Current Limitations
+## Implementation scope
 
-- Roadmap generation is deterministic and template-based; no live generative AI model is currently connected.
-- The web app is not an official Alexa+ integration and does not connect to an Alexa device or Amazon Bedrock.
-- The MCP endpoint provides planning and calculation tools; it does not perform external actions or modify stored web-app plans.
-- The MCP endpoint does not currently provide OAuth or per-user authorization.
-- Rate limiting, monitoring, password recovery, email verification, and a comprehensive automated integration-test suite remain future work.
-- Browser voice features vary by browser, device, permissions, and language support.
+LifePilot is an independent hackathon project that brings together a voice-first conversational interface, a self-hosted MCP server, goal-specific seven-day roadmaps, and a persistent task workspace. The conversational tools operate on the request supplied by the caller; the workspace manages saved plans and task progress. Roadmaps are currently produced by deterministic templates, and browser voice availability depends on device support and microphone permission.
 
 ## Roadmap
 
@@ -299,7 +308,8 @@ Use the [live application](https://lifepilot-alexa-action-agent.vercel.app/) to 
 3. Review and approve the proposed plan.
 4. Mark a task complete, then reopen it.
 5. Refresh the page to show that the web-app state persists.
-6. Open MCP Inspector and demonstrate all three tools: roadmap generation, next-action recommendation, and progress calculation.
+6. Use LifePilot Voice to generate a roadmap, request the next action, and calculate progress through the live MCP endpoint. 
+7. Open MCP Inspector to show the server's tools and resources for technical verification.
 
 For a clear demo, explain the distinction between the persistent web app and the stateless MCP tools. Browser voice should only be demonstrated on a supported browser/device with the required permissions.
 
