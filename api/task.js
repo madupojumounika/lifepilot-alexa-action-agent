@@ -20,15 +20,17 @@ export default async function handler(req, res) {
   try {
     const db = getPool();
     if (action === "approve_all") {
-      const { rows: plans } = await db.query("SELECT id FROM lifepilot_plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1", [user.id]);
-      if (!plans.length) return res.status(404).json({ error: "Create a plan first." });
+      const planId = String(req.body?.planId || "").trim();
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(planId)) return res.status(400).json({ error: "Choose a valid roadmap before approving it." });
+      const { rows: plans } = await db.query("SELECT id FROM lifepilot_plans WHERE user_id = $1 AND id = $2 LIMIT 1", [user.id, planId]);
+      if (!plans.length) return res.status(404).json({ error: "That roadmap was not found in your workspace." });
       const { rows: changed } = await db.query(
         "UPDATE lifepilot_tasks SET status = 'approved' WHERE plan_id = $1 AND status = 'pending' RETURNING id",
-        [plans[0].id]
+        [planId]
       );
       const { rows: tasks } = await db.query(
         "SELECT id, plan_id, title, day_index, category, duration_minutes, status FROM lifepilot_tasks WHERE plan_id = $1 ORDER BY day_index ASC",
-        [plans[0].id]
+        [planId]
       );
       return res.status(200).json({ tasks, approvedCount: changed.length, message: "Plan approved. You can now mark actions complete as you do them." });
     }

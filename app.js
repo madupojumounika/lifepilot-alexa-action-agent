@@ -97,7 +97,8 @@
       goalInput.value = currentPlan?.goal || "";
       renderTasks();
       log("Previous roadmap opened", currentPlan.goal, "success", "HISTORY RESTORED");
-      $("plan-panel").scrollIntoView({behavior:"smooth",block:"start"});
+      setActiveView("roadmap");
+      window.scrollTo({top:0,behavior:"smooth"});
       showToast("Previous roadmap loaded. You can continue tracking its tasks.");
     } catch (error) { showToast(error.message || "Could not open that roadmap."); }
   }
@@ -129,7 +130,7 @@
         renderRoadmapHistory(data);
         const summary = data.summary || {};
         addAgentMessage("assistant", "You have created "+(summary.totalRoadmaps||0)+" roadmaps so far. "+(summary.completedRoadmaps||0)+" are completed and "+(summary.inProgressRoadmaps||0)+" are still in progress. I have refreshed your saved roadmap history below.", "SAVED ROADMAP HISTORY");
-        $("history-panel").scrollIntoView({behavior:"smooth",block:"start"});
+        setActiveView("history");
       } else if (action === "roadmap") {
         addAgentMessage("assistant", "I am mapping your goal into seven focused steps. You can review the result before adding it to your workspace.", "MCP · GENERATE GOAL ROADMAP");
         const result = await callMcpTool("generate_goal_roadmap", {goal:goal,startDate:todayISO()}); agentRoadmap = result; agentCompletedDays = [];
@@ -234,7 +235,6 @@
     e.preventDefault(); if (busy) return;
     const goal = goalInput.value.trim(); if (goal.length < 8) { showToast("Add a little more detail to your goal."); return; }
     busy = true; planBtn.disabled = true; planBtn.innerHTML = '<span>Building your plan…</span><span>◌</span>';
-    $("activity-list").innerHTML = "";
     log("Understanding your goal", "Reading your objective and timeline.", "normal", "STEP 1 OF 3");
     try {
       const data = await request("/api/plan", {goal, startDate:todayISO()});
@@ -242,7 +242,8 @@
       log("Plan created", "Generated "+currentTasks.length+" daily actions with categories and time estimates.", "success", "STEP 2 OF 3");
       log("Waiting for your approval", "No task was marked approved or completed. You stay in control.", "normal", "STEP 3 OF 3");
       renderTasks(); refreshRoadmapHistory(); showToast("Your action plan is ready for review."); speak("Your seven day action plan is ready. Please review it and approve before marking any action complete.");
-      $("plan-panel").scrollIntoView({behavior:"smooth",block:"nearest"});
+      setActiveView("roadmap");
+      window.scrollTo({top:0,behavior:"smooth"});
     } catch(err) { log("Could not create the plan", err.message, "normal", "ACTION NEEDED"); showToast(err.message); }
     finally { busy = false; planBtn.disabled = false; planBtn.innerHTML = '<span>Build my action plan</span><span>↗</span>'; }
   });
@@ -250,15 +251,38 @@
     if (!currentPlan || !currentTasks.length || currentTasks.some(t => t.status === "pending") === false) return;
     const btn = $("approve-btn"); btn.disabled = true;
     try {
-      const data = await request("/api/task", {taskId:"all", action:"approve_all"});
+      const data = await request("/api/task", {taskId:"all", planId:currentPlan.id, action:"approve_all"});
       currentTasks = data.tasks || [];
       renderTasks(); refreshRoadmapHistory(); log("Plan approved by you", data.message, "success", "APPROVAL RECORDED"); showToast(data.message); speak("Plan approved. You can now mark actions complete as you do them.");
     } catch(e) { showToast(e.message); btn.disabled = false; }
   });
-  $("nav-overview").addEventListener("click", () => { $("top").scrollIntoView({behavior:"smooth",block:"start"}); window.scrollTo({top:0,behavior:"smooth"}); });
-  $("nav-plan").addEventListener("click", () => $("plan-panel").scrollIntoView({behavior:"smooth",block:"start"}));
-  $("nav-activity").addEventListener("click", () => $("activity-list").scrollIntoView({behavior:"smooth",block:"center"}));
-  $("nav-history").addEventListener("click", () => { refreshRoadmapHistory(); $("history-panel").scrollIntoView({behavior:"smooth",block:"start"}); });
+  const pageViews = {
+    overview: { title: "Overview", show: ["welcome", "voice-agent-card", "composer-card", "section-heading", "metrics", "work-grid", "footer"] },
+    roadmap: { title: "My Roadmap", show: ["composer-card", "work-grid", "plan-panel", "footer"] },
+    activity: { title: "Activity", show: ["work-grid", "agent-panel", "footer"] },
+    history: { title: "Roadmap History", show: ["history-panel", "footer"] }
+  };
+  function setActiveView(view, updateUrl = true) {
+    const page = pageViews[view] || pageViews.overview;
+    const all = ["welcome", "voice-agent-card", "composer-card", "section-heading", "metrics", "history-panel", "work-grid", "plan-panel", "agent-panel", "footer"];
+    const nodes = Object.fromEntries(all.map(id => [id, id === "welcome" ? document.querySelector(".welcome") : id === "voice-agent-card" ? document.querySelector(".voice-agent-card") : id === "composer-card" ? document.querySelector(".composer-card") : id === "section-heading" ? document.querySelector(".section-heading") : id === "metrics" ? document.querySelector(".metrics") : id === "history-panel" ? $("history-panel") : id === "work-grid" ? document.querySelector(".work-grid") : id === "plan-panel" ? $("plan-panel") : id === "agent-panel" ? document.querySelector(".agent-panel") : document.querySelector(".footer")]));
+    all.forEach(id => { if (nodes[id]) nodes[id].hidden = !page.show.includes(id); });
+    document.querySelectorAll(".nav-item").forEach(button => {
+      const active = button.id === ({overview:"nav-overview",roadmap:"nav-plan",activity:"nav-activity",history:"nav-history"}[view]);
+      button.classList.toggle("active", active);
+      if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
+    });
+    $("breadcrumb-current").textContent = page.title;
+    if (updateUrl && location.hash !== "#" + view) history.replaceState(null, "", "#" + view);
+    window.scrollTo({top:0,behavior:"smooth"});
+    if (view === "history") refreshRoadmapHistory();
+    if (view === "activity") $("activity-list").scrollTop = 0;
+  }
+  $("nav-overview").addEventListener("click", () => setActiveView("overview"));
+  $("nav-plan").addEventListener("click", () => setActiveView("roadmap"));
+  $("nav-activity").addEventListener("click", () => setActiveView("activity"));
+  $("nav-history").addEventListener("click", () => setActiveView("history"));
+  window.addEventListener("hashchange", () => setActiveView(location.hash.slice(1), false));
   $("refresh-history").addEventListener("click", refreshRoadmapHistory);
   $("help-btn").addEventListener("click", () => $("help-dialog").showModal());
   $("close-help").addEventListener("click", () => $("help-dialog").close());
@@ -332,6 +356,7 @@
     $("profile-email").textContent = user.email || "Signed in";
     $("avatar-letter").textContent = (user.display_name || user.email || "L").trim().charAt(0).toUpperCase();
     renderWeekDates();
+    setActiveView(["overview","roadmap","activity","history"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview", false);
     loadLatest();
     refreshRoadmapHistory();
   }
