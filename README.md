@@ -177,6 +177,17 @@ The portable agent-skill instructions are available at:
 
 The skill explains how a compatible agent should request a roadmap, present it as a proposal, recommend a next step, and calculate progress without claiming that work has been completed automatically. The skill is an instruction file; it does not include or host an AI model by itself.
 
+## Persistent Roadmap History
+
+LifePilot keeps each signed-in user's roadmaps in the database, so starting a new goal does not erase earlier work. The workspace history shows:
+
+- Total roadmaps created, completed roadmaps, and roadmaps still in progress
+- Each goal's creation date, completed-task count, and completion percentage
+- A one-click action to reopen any saved roadmap and continue tracking it
+- A conversational history request, such as "Show my previous roadmaps" or "How many goals have I completed?"
+
+Roadmap completion is calculated from persisted task statuses: a roadmap is complete only when every task is marked done. History is scoped to the authenticated account and retrieved through the authenticated `/api/history` endpoint.
+
 ## Architecture
 
 ```text
