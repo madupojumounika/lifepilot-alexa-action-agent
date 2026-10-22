@@ -72,8 +72,10 @@ const makeTasks = (goal) => {
 };
 
 export default async function(req, res) {
+  const sessionId = String((req.method === "GET" ? req.query?.sessionId : req.body?.sessionId) || "").trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) return res.status(400).json({ error: "A valid browser session is required. Refresh the page and try again." });
   if (req.method === "GET") {
-    const { rows: plans } = await db.query("SELECT id, goal, created_at FROM lifepilot_plans ORDER BY created_at DESC LIMIT 1");
+    const { rows: plans } = await db.query("SELECT id, goal, start_date, created_at FROM lifepilot_plans WHERE session_id = $1 ORDER BY created_at DESC LIMIT 1", [sessionId]);
     if (!plans.length) return res.json({ plan: null, tasks: [] });
     const plan = plans[0];
     const { rows: tasks } = await db.query("SELECT id, plan_id, title, day_index, category, duration_minutes, status, created_at FROM lifepilot_tasks WHERE plan_id = $1 ORDER BY day_index ASC", [plan.id]);
@@ -82,7 +84,10 @@ export default async function(req, res) {
   const goal = String(req.body?.goal || "").trim();
   if (goal.length < 8) return res.status(400).json({ error: "Tell me a little more about the goal (at least 8 characters)." });
   if (goal.length > 600) return res.status(400).json({ error: "Please keep the goal under 600 characters." });
-  const { rows: planRows } = await db.query("INSERT INTO lifepilot_plans (goal) VALUES ($1) RETURNING id, goal, created_at", [goal]);
+  const startDate = String(req.body?.startDate || "");
+  const parsedStartDate = new Date(startDate + "T00:00:00Z");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || Number.isNaN(parsedStartDate.getTime()) || parsedStartDate.toISOString().slice(0, 10) !== startDate) return res.status(400).json({ error: "Please choose a valid calendar date." });
+  const { rows: planRows } = await db.query("INSERT INTO lifepilot_plans (goal, start_date, session_id) VALUES ($1, $2::date, $3) RETURNING id, goal, start_date, created_at", [goal, startDate, sessionId]);
   const plan = planRows[0];
   const taskDefs = makeTasks(goal);
   const tasks = [];
