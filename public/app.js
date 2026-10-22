@@ -1,0 +1,144 @@
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const form = $("goal-form"), goalInput = $("goal-input"), planBtn = $("plan-btn");
+  let currentPlan = null, currentTasks = [], busy = false, toastTimer;
+  const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const showToast = (message) => { const el = $("toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 3200); };
+  const log = (title, detail, type="normal", stamp="JUST NOW") => {
+    const row = document.createElement("div"); row.className = "activity-item";
+    const marker = document.createElement("div"); marker.className = "activity-marker " + (type === "success" ? "success" : "");
+    marker.textContent = type === "success" ? "✓" : "✦";
+    const body = document.createElement("div");
+    const strong = document.createElement("strong"); strong.textContent = title;
+    const p = document.createElement("p"); p.textContent = detail;
+    const small = document.createElement("small"); small.textContent = stamp;
+    body.append(strong,p,small); row.append(marker,body); $("activity-list").prepend(row);
+  };
+  async function request(path, body) {
+    const response = await fetch(path, {method: body ? "POST" : "GET", headers: body ? {"Content-Type":"application/json"} : {}, body: body ? JSON.stringify(body) : undefined});
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+    return data;
+  }
+  function updateMetrics() {
+    const done = currentTasks.filter(t => t.status === "done").length;
+    $("metric-mission").textContent = currentPlan ? (currentPlan.goal.length > 22 ? currentPlan.goal.slice(0,22) + "…" : currentPlan.goal) : "—";
+    $("metric-mission").title = currentPlan?.goal || "";
+    $("metric-actions").textContent = currentTasks.length;
+    $("metric-done").textContent = done;
+    const pct = currentTasks.length ? Math.round(done/currentTasks.length*100) : 0;
+    $("metric-percent").textContent = pct + "% complete";
+    $("progress-fill").style.width = pct + "%";
+    $("nav-count").textContent = currentTasks.length;
+  }
+  function renderTasks() {
+    const list = $("task-list"), empty = $("empty-plan"), footer = $("plan-footer");
+    if (!currentPlan || !currentTasks.length) { empty.hidden = false; list.hidden = true; footer.hidden = true; $("plan-status").textContent = "WAITING FOR A GOAL"; updateMetrics(); return; }
+    empty.hidden = true; list.hidden = false; footer.hidden = false;
+    const allApproved = currentTasks.every(t => t.status !== "pending");
+    const allDone = currentTasks.every(t => t.status === "done");
+    $("plan-status").textContent = allDone ? "MISSION COMPLETE" : allApproved ? "PLAN APPROVED" : "REVIEW REQUIRED";
+    $("approval-copy").textContent = allApproved ? (allDone ? "All actions marked complete." : "Plan approved · mark actions done as you complete them.") : "Review your actions before approving.";
+    $("approve-btn").disabled = allApproved;
+    $("approve-btn").classList.toggle("approved", allApproved);
+    $("approve-btn").innerHTML = allApproved ? (allDone ? "Mission complete ✓" : "Plan approved ✓") : 'Approve plan <span>✓</span>';
+    list.innerHTML = currentTasks.map((t) => {
+      const done = t.status === "done", approved = t.status === "approved";
+      const stateClass = done ? "done" : approved ? "approved" : "";
+      const icon = done ? "✓" : approved ? "✓" : "·";
+      const buttonLabel = done ? "Completed" : approved ? "Mark done" : "Pending approval";
+      return '<div class="task-row '+(done?'is-done':'')+'"><button class="task-check '+stateClass+'" data-task="'+escapeHtml(t.id)+'" data-status="'+escapeHtml(t.status)+'" aria-label="'+buttonLabel+'">'+icon+'</button><div><div class="task-title">'+escapeHtml(t.title)+'</div><div class="task-meta">'+escapeHtml(t.category)+' · '+Number(t.duration_minutes)+' min</div></div><span class="day-chip">DAY '+Number(t.day_index)+'</span></div>';
+    }).join("");
+    list.querySelectorAll(".task-check").forEach(btn => btn.addEventListener("click", async () => {
+      const status = btn.dataset.status;
+      if (status === "pending") { showToast("Approve the plan before marking actions complete."); return; }
+      if (status === "done") { showToast("This action is already recorded as complete."); return; }
+      btn.disabled = true;
+      try {
+        const result = await request("/api/task", {taskId:btn.dataset.task, action:"complete"});
+        currentTasks = currentTasks.map(t => t.id === result.task.id ? result.task : t);
+        renderTasks(); updateMetrics(); log("Action verified", result.task.title, "success", "PERSISTED TO TASK STORE"); showToast(result.message);
+      } catch(e) { showToast(e.message); btn.disabled = false; }
+    }));
+    updateMetrics();
+  }
+  async function loadLatest() {
+    try {
+      const data = await request("/api/plan");
+      currentPlan = data.plan; currentTasks = data.tasks || [];
+      if (currentPlan) log("Restored your latest mission", "Loaded the saved plan and task statuses from the backend.", "success", "SESSION RESTORED");
+      renderTasks();
+    } catch(e) { showToast("Backend not ready yet: " + e.message); }
+  }
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault(); if (busy) return;
+    const goal = goalInput.value.trim(); if (goal.length < 8) { showToast("Add a little more detail to your goal."); return; }
+    busy = true; planBtn.disabled = true; planBtn.innerHTML = '<span>Building your plan…</span><span>◌</span>';
+    $("activity-list").innerHTML = "";
+    log("Understanding your goal", "Reading your objective and timeline.", "normal", "STEP 1 OF 3");
+    try {
+      const data = await request("/api/plan", {goal});
+      currentPlan = data.plan; currentTasks = data.tasks || [];
+      log("Plan created", "Generated "+currentTasks.length+" daily actions with categories and time estimates.", "success", "STEP 2 OF 3");
+      log("Waiting for your approval", "No task was marked approved or completed. You stay in control.", "normal", "STEP 3 OF 3");
+      renderTasks(); showToast("Your action plan is ready for review."); speak("Your seven day action plan is ready. Please review it and approve before marking any action complete.");
+      $("plan-panel").scrollIntoView({behavior:"smooth",block:"nearest"});
+    } catch(err) { log("Could not create the plan", err.message, "normal", "ACTION NEEDED"); showToast(err.message); }
+    finally { busy = false; planBtn.disabled = false; planBtn.innerHTML = '<span>Build my action plan</span><span>↗</span>'; }
+  });
+  $("approve-btn").addEventListener("click", async () => {
+    if (!currentPlan || !currentTasks.length || currentTasks.some(t => t.status === "pending") === false) return;
+    const btn = $("approve-btn"); btn.disabled = true;
+    try {
+      const data = await request("/api/task", {taskId:"all", action:"approve_all"});
+      currentTasks = data.tasks || [];
+      renderTasks(); log("Plan approved by you", data.message, "success", "APPROVAL RECORDED"); showToast(data.message); speak("Plan approved. You can now mark actions complete as you do them.");
+    } catch(e) { showToast(e.message); btn.disabled = false; }
+  });
+  $("nav-plan").addEventListener("click", () => $("plan-panel").scrollIntoView({behavior:"smooth",block:"start"}));
+  $("nav-activity").addEventListener("click", () => $("activity-list").scrollIntoView({behavior:"smooth",block:"center"}));
+  $("help-btn").addEventListener("click", () => $("help-dialog").showModal());
+  $("close-help").addEventListener("click", () => $("help-dialog").close());
+  $("help-dialog").addEventListener("click", (e) => { if (e.target === $("help-dialog")) $("help-dialog").close(); });
+  const speak = (message) => {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(message);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  };
+  const voiceBtn = $("voice-btn");
+  if (voiceBtn) voiceBtn.addEventListener("click", () => {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) {
+      showToast("Voice input is not supported in this browser. Try the latest Chrome, or type your goal.");
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    voiceBtn.disabled = true;
+    voiceBtn.textContent = "Listening…";
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+      if (transcript) {
+        goalInput.value = transcript;
+        showToast("Voice captured. Review the text, then build your plan.");
+        speak("I heard your goal. Please review it, then choose build my action plan.");
+      }
+    };
+    recognition.onerror = (event) => showToast(event.error === "not-allowed" ? "Microphone permission was blocked. Allow microphone access and try again." : "I couldn't capture that. Please try again or type your goal.");
+    recognition.onend = () => {
+      voiceBtn.disabled = false;
+      voiceBtn.textContent = "🎙 Speak";
+    };
+    try { recognition.start(); } catch (e) {
+      voiceBtn.disabled = false;
+      voiceBtn.textContent = "🎙 Speak";
+      showToast("Voice input couldn't start. Please try again.");
+    }
+  });
+  loadLatest();
+})();
