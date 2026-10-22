@@ -4,7 +4,7 @@
 
 - **Live application:** https://lifepilot-alexa-action-agent-m86qjsmtw.vercel.app/
 - **Repository:** https://github.com/madupojumounika/lifepilot-alexa-action-agent
-- **Deployment branch:** `vercel-deploy`
+- **Deployment branch:** `production`
 
 ## Overview
 
@@ -109,7 +109,7 @@ The production frontend and API are deployed on Vercel from the `vercel-deploy` 
 
 To deploy your own instance:
 
-1. Import this GitHub repository into Vercel and select `vercel-deploy` as the production branch.
+1. Import this GitHub repository into Vercel and select `production` as the production branch.
 2. Create a PostgreSQL database and execute `vercel-schema.sql` against it.
 3. Add `DATABASE_URL` to the Vercel project's Environment Variables. Set it for Production and any other environments you intend to use.
 4. Deploy or redeploy the project.
