@@ -1,9 +1,10 @@
 # LifePilot — AI Action Agent
 
-LifePilot is a goal-to-action planning prototype inspired by personal assistant experiences such as Alexa+. It converts a goal into a proposed seven-day roadmap, keeps the user in control through a review step, and tracks task progress in a web interface. It also exposes planning tools through a self-hosted Model Context Protocol (MCP) Streamable HTTP endpoint.
+LifePilot is a goal-to-action planning prototype inspired by personal assistant experiences such as Alexa+. It converts a goal into a proposed seven-day roadmap, keeps the user in control through a review step, and tracks task progress in a web interface. It also exposes planning tools through a self-hosted Model Context Protocol (MCP) Streamable HTTP endpoint and includes a portable agent skill that describes how a compatible agent should use those tools.
 
 - **Live application:** https://lifepilot-alexa-action-agent.vercel.app/
 - **MCP endpoint:** https://lifepilot-alexa-action-agent.vercel.app/api/mcp
+- **Agent skill:** [skills/lifepilot-goal-planning/SKILL.md](skills/lifepilot-goal-planning/SKILL.md)
 - **Repository:** https://github.com/madupojumounika/lifepilot-alexa-action-agent
 - **Deployment branch:** `production`
 
@@ -18,6 +19,7 @@ LifePilot is a goal-to-action planning prototype inspired by personal assistant 
 - **Voice interaction:** Browser speech recognition and speech synthesis where supported.
 - **Activity tracking:** View actions and progress in the workspace.
 - **MCP tools:** Let a compatible MCP client request a roadmap, get a next-action recommendation, or calculate progress from supplied statuses.
+- **Agent skill:** Provides a reusable goal-planning workflow and safety instructions for compatible agents.
 
 ## MCP server
 
@@ -41,6 +43,10 @@ https://lifepilot-alexa-action-agent.vercel.app/api/mcp
 
 Call `generate_goal_roadmap` with a goal such as `Prepare for a software engineering interview`, then inspect the seven-day task list. The endpoint must be deployed before it can be tested remotely.
 
+## Agent skill
+
+The portable skill is located at `skills/lifepilot-goal-planning/SKILL.md`. It tells a compatible agent how to call the MCP tools, present the proposed roadmap, recommend a next step, and calculate progress without claiming actions were executed. The skill file is an instruction bundle; it does not by itself provide a live AI model or connect to Alexa+.
+
 ## Important scope note
 
 LifePilot is an independent web prototype inspired by personal assistant experiences. It is **not an official Alexa+ integration** and does not connect to an Alexa device, Amazon Bedrock, or the gated Alexa+ add-on tools. The MCP server provides a standards-based integration surface for compatible MCP clients; it does not itself turn the web app into an Alexa+ device integration.
@@ -50,6 +56,7 @@ LifePilot is an independent web prototype inspired by personal assistant experie
 - **Frontend:** HTML, CSS, vanilla JavaScript
 - **Backend:** Vercel serverless API routes on Node.js
 - **MCP:** `@modelcontextprotocol/sdk`, Streamable HTTP transport
+- **Agent instructions:** Portable `SKILL.md`
 - **Database:** PostgreSQL hosted on Neon
 - **Database driver:** Node.js `pg` package
 - **Validation:** Zod
