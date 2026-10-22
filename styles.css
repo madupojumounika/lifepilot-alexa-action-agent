@@ -32,3 +32,33 @@
 .voice-composer{display:flex;align-items:flex-end;gap:8px;padding:8px;border:1px solid #ffffff30;background:#19271f;border-radius:9px}.voice-composer textarea{flex:1;min-width:0;max-height:100px;resize:vertical;border:0;outline:0;background:transparent;color:#f8f8ef;font:11px/1.6 var(--sans);padding:8px}.voice-composer textarea::placeholder{color:#98a996}.voice-listen-btn{width:37px;height:37px;flex-shrink:0;border:1px solid #ffffff2a;border-radius:7px;background:#ffffff0a;color:#d7e9c7;font-size:20px;cursor:pointer}.voice-listen-btn:hover{background:#ffffff18}.voice-send-btn{display:flex;align-items:center;gap:12px;justify-content:center;min-height:37px;padding:0 12px;border:1px solid #d5e7c5;border-radius:7px;background:#dce9cf;color:#2b422e;font:700 10px var(--sans);white-space:nowrap;cursor:pointer}.voice-send-btn:disabled,.voice-listen-btn:disabled{opacity:.55;cursor:wait}.voice-agent-foot{display:flex;justify-content:space-between;gap:10px;padding:11px 2px 0;color:#aebda7;font-size:8px}.voice-agent-foot span:first-child{display:flex;align-items:center;gap:6px}.voice-agent-foot i{width:6px;height:6px;border-radius:50%;background:#a8d48e;box-shadow:0 0 8px #a8d48e70}.voice-agent-foot span:last-child{text-align:right}
 @media(max-width:560px){.voice-agent-top{padding:20px 15px 16px;gap:10px}.voice-agent-top h2{font-size:22px}.voice-agent-intro{font-size:10px}.voice-orb{width:53px;height:53px}.voice-orb span{height:11px}.voice-orb span:nth-child(2){height:18px}.voice-orb span:nth-child(3){height:14px}.voice-orb-wrap small{font-size:6px;letter-spacing:.5px}.voice-agent-body{padding:14px 12px 12px}.voice-conversation{max-height:300px}.voice-message{max-width:100%}.voice-quick-actions button{font-size:8px;padding:7px 8px}.voice-composer{gap:5px;padding:5px}.voice-composer textarea{font-size:10px;padding:8px 5px}.voice-send-btn{font-size:9px;padding:0 8px;gap:6px}.voice-listen-btn{width:32px;height:34px}.voice-agent-foot{font-size:7px}.voice-result-task{grid-template-columns:25px 1fr}.voice-result-task small{grid-column:2}}
 @media(prefers-reduced-motion:reduce){.voice-orb span{animation:none}}
+
+
+/* Persistent roadmap history */
+.history-panel { margin: 26px 0; padding: 24px; }
+.history-panel .panel-heading { margin-bottom: 18px; }
+.history-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
+.history-stat { border: 1px solid var(--line, #e6e5dd); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 5px; background: rgba(255,255,255,.45); }
+.history-stat strong { font: 700 27px/1.1 Manrope, sans-serif; color: var(--ink, #1d2a22); }
+.history-stat span { font-size: 12px; color: var(--muted, #72766f); }
+.history-list { display: grid; gap: 10px; }
+.history-item { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 16px; border: 1px solid var(--line, #e6e5dd); border-radius: 14px; padding: 15px 16px; }
+.history-item h3 { margin: 0 0 6px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.history-item p { margin: 0; font-size: 12px; color: var(--muted, #72766f); }
+.history-item .history-progress { height: 5px; border-radius: 99px; background: #e8e9e1; overflow: hidden; margin-top: 10px; max-width: 360px; }
+.history-item .history-progress span { display: block; height: 100%; background: #6b9a78; border-radius: inherit; }
+.history-item-actions { display: flex; align-items: center; gap: 10px; }
+.history-status { display: inline-flex; border-radius: 99px; padding: 5px 9px; background: #edf4e9; color: #376347; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.history-status.active { background: #f6f0dc; color: #7c6525; }
+.history-open { border: 1px solid var(--line, #deded5); border-radius: 9px; background: transparent; color: inherit; font: inherit; font-size: 12px; font-weight: 700; padding: 9px 12px; cursor: pointer; white-space: nowrap; }
+.history-open:hover { background: #eef1e8; }
+.history-empty { border: 1px dashed var(--line, #d8d9d0); border-radius: 12px; padding: 22px; text-align: center; color: var(--muted, #72766f); font-size: 13px; }
+@media (max-width: 680px) {
+  .history-panel { padding: 16px; }
+  .history-summary { gap: 7px; }
+  .history-stat { padding: 11px 9px; }
+  .history-stat strong { font-size: 22px; }
+  .history-stat span { font-size: 10px; }
+  .history-item { grid-template-columns: 1fr; gap: 12px; }
+  .history-item-actions { justify-content: space-between; }
+}
