@@ -111,7 +111,7 @@
     } catch (error) { addAgentMessage("assistant", error.message || "I could not complete that request. Please try again.", "PLEASE TRY AGAIN"); }
     finally { agentSend.disabled = false; agentSend.innerHTML = previousLabel; }
   }
-  function classifyAgentIntent(message) { const text = message.toLowerCase(); if (/\\b(progress|percentage|percent|how much.*done|how many.*complete|status)\\b/.test(text)) return "progress"; if (/\\b(next|what should i do|recommend|suggest|first step|up next)\\b/.test(text)) return "next"; return "roadmap"; }
+  function classifyAgentIntent(message) { const text = message.toLowerCase(); if (/\b(progress|percentage|percent|how much.*done|how many.*complete|status)\b/.test(text)) return "progress"; if (/\b(next|what should i do|recommend|suggest|first step|up next)\b/.test(text)) return "next"; return "roadmap"; }
   if (agentForm) agentForm.addEventListener("submit", event => { event.preventDefault(); const message = agentInput.value.trim(); if (!message) return; addAgentMessage("user", message, "YOUR REQUEST"); agentInput.value = ""; runAgentAction(classifyAgentIntent(message), message); });
   document.querySelectorAll("[data-voice-prompt]").forEach(button => button.addEventListener("click", () => { const prompt = button.dataset.voicePrompt || ""; agentInput.value = prompt; addAgentMessage("user", prompt, "QUICK PROMPT"); runAgentAction("roadmap", prompt); }));
   document.querySelectorAll("[data-voice-action]").forEach(button => button.addEventListener("click", () => { const action = button.dataset.voiceAction; addAgentMessage("user", action === "next" ? "What should I do next?" : "Show my plan progress.", "QUICK ACTION"); runAgentAction(action); }));
