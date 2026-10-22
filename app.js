@@ -250,14 +250,31 @@
     finally { busy = false; planBtn.disabled = false; planBtn.innerHTML = '<span>Build my action plan</span><span>↗</span>'; }
   });
   $("approve-btn").addEventListener("click", async () => {
-    if (!currentPlan?.id || !currentTasks.length) { showToast("Create or open a saved roadmap before approving it."); setActiveView("roadmap"); return; }
-    if (currentTasks.some(t => t.status === "pending") === false) { showToast("This roadmap has no pending tasks to approve."); return; }
     const btn = $("approve-btn"); btn.disabled = true;
     try {
+      // Refresh from the authenticated database instead of relying on stale in-memory state.
+      if (!currentPlan?.id || !currentTasks.length) {
+        const latest = await request("/api/plan");
+        if (latest.plan?.id && (latest.tasks || []).length) {
+          currentPlan = latest.plan;
+          currentTasks = latest.tasks;
+          renderTasks();
+        }
+      }
+      if (!currentPlan?.id || !currentTasks.length) {
+        showToast("Create or open a saved roadmap before approving it.");
+        setActiveView("roadmap");
+        return;
+      }
+      if (!currentTasks.some(t => t.status === "pending")) {
+        showToast("This roadmap has no pending tasks to approve.");
+        return;
+      }
       const data = await request("/api/task", {taskId:"all", planId:currentPlan.id, action:"approve_all"});
       currentTasks = data.tasks || [];
       renderTasks(); refreshRoadmapHistory(); log("Plan approved by you", data.message, "success", "APPROVAL RECORDED"); showToast(data.message); speak("Plan approved. You can now mark actions complete as you do them.");
-    } catch(e) { showToast(e.message); btn.disabled = false; }
+    } catch(e) { showToast(e.message); }
+    finally { btn.disabled = false; }
   });
   const pageViews = {
     overview: { title: "Overview", show: ["welcome", "voice-agent-card", "composer-card", "section-heading", "metrics", "work-grid", "plan-panel", "agent-panel", "footer"] },
