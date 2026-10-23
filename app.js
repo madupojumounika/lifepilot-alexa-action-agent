@@ -322,6 +322,7 @@
   $("nav-plan").addEventListener("click", () => setActiveView("roadmap"));
   $("nav-activity").addEventListener("click", () => setActiveView("activity"));
   $("nav-history").addEventListener("click", () => setActiveView("history"));
+  $("nav-history-top").addEventListener("click", () => setActiveView("history"));
   window.addEventListener("hashchange", () => setActiveView(location.hash.slice(1), false));
   $("refresh-history").addEventListener("click", refreshRoadmapHistory);
   $("help-btn").addEventListener("click", () => $("help-dialog").showModal());
