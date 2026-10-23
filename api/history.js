@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     if (!user) return res.status(401).json({ error: "Please log in to access your roadmap history." });
     const db = getPool();
 
-    if (req.method === "DELETE") {
+    if (req.method === "DELETE" || (req.method === "POST" && req.body?.action === "delete")) {
       const planId = String(req.query?.planId || req.body?.planId || "").trim();
       if (!planId || planId.length > 200) return res.status(400).json({ error: "Choose a valid roadmap to delete." });
       const client = await db.connect();
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method !== "GET") {
-      res.setHeader("Allow", "GET, DELETE");
+      res.setHeader("Allow", "GET, POST, DELETE");
       return res.status(405).json({ error: "Method not allowed." });
     }
     const { rows } = await db.query(
