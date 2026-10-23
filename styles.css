@@ -102,3 +102,7 @@
 .sidebar #nav-history{display:flex!important;visibility:visible;opacity:1}
 .sidebar .nav-item .nav-symbol{display:inline-flex;flex:0 0 18px;align-items:center;justify-content:center}
 .sidebar .nav-item .nav-count{display:inline-flex;align-items:center;justify-content:center;margin-left:auto}
+
+
+/* Always-visible Roadmap History shortcut in the top bar. */
+.top-history-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid #d6ddcf;background:#edf2e6;color:#304832;border-radius:7px;padding:8px 11px;font:600 10px var(--sans);cursor:pointer;white-space:nowrap}.top-history-btn:hover{background:#dfe9d4;border-color:#aebfa1}.top-history-btn span{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:5px;background:#d6e4c8;color:#304832;font:500 9px var(--mono)}@media(max-width:560px){.top-history-btn{font-size:9px;padding:7px 6px;gap:4px}.top-actions{gap:5px}.top-history-btn span{min-width:15px;height:16px}}
