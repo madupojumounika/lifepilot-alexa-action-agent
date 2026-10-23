@@ -252,20 +252,40 @@
   $("approve-btn").addEventListener("click", async () => {
     const btn = $("approve-btn"); btn.disabled = true;
     try {
-      // Refresh from the authenticated database instead of relying on stale in-memory state.
+      // Always resolve the selected roadmap from the authenticated server before approval.
+      // Voice-generated drafts and a freshly refreshed page can leave client state empty or stale.
+      if (currentPlan?.id) {
+        const selected = await request("/api/plan?planId=" + encodeURIComponent(currentPlan.id));
+        if (selected.plan?.id && (selected.tasks || []).length) {
+          currentPlan = selected.plan;
+          currentTasks = selected.tasks;
+        } else {
+          currentPlan = null;
+          currentTasks = [];
+        }
+      }
       if (!currentPlan?.id || !currentTasks.length) {
         const latest = await request("/api/plan");
         if (latest.plan?.id && (latest.tasks || []).length) {
           currentPlan = latest.plan;
           currentTasks = latest.tasks;
-          renderTasks();
         }
       }
+      // If the user has described a goal but no roadmap was saved yet, save it first
+      // so the approval action works from the primary goal composer too.
+      if ((!currentPlan?.id || !currentTasks.length) && goalInput.value.trim().length >= 8) {
+        const saved = await request("/api/plan", {goal: goalInput.value.trim(), startDate: todayISO()});
+        currentPlan = saved.plan;
+        currentTasks = saved.tasks || [];
+        refreshRoadmapHistory();
+        log("Plan saved for approval", "Saved the current goal before applying your approval.", "success", "ROADMAP SAVED");
+      }
       if (!currentPlan?.id || !currentTasks.length) {
-        showToast("Create or open a saved roadmap before approving it.");
+        showToast("Create a roadmap first, then approve its saved actions.");
         setActiveView("roadmap");
         return;
       }
+      renderTasks();
       if (!currentTasks.some(t => t.status === "pending")) {
         showToast("This roadmap has no pending tasks to approve.");
         return;
