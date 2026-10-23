@@ -6,14 +6,41 @@ export const config = { runtime: "nodejs" };
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Vary", "Cookie");
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed." });
-  }
   try {
     const user = await getAuthenticatedUser(req);
-    if (!user) return res.status(401).json({ error: "Please log in to view your roadmap history." });
+    if (!user) return res.status(401).json({ error: "Please log in to access your roadmap history." });
     const db = getPool();
+
+    if (req.method === "DELETE") {
+      const planId = String(req.query?.planId || req.body?.planId || "").trim();
+      if (!planId || planId.length > 200) return res.status(400).json({ error: "Choose a valid roadmap to delete." });
+      const client = await db.connect();
+      try {
+        await client.query("BEGIN");
+        const { rows: plans } = await client.query(
+          "SELECT id FROM lifepilot_plans WHERE id = $1 AND user_id = $2 FOR UPDATE",
+          [planId, user.id]
+        );
+        if (!plans.length) {
+          await client.query("ROLLBACK");
+          return res.status(404).json({ error: "That roadmap was not found in your history." });
+        }
+        await client.query("DELETE FROM lifepilot_tasks WHERE plan_id = $1", [planId]);
+        await client.query("DELETE FROM lifepilot_plans WHERE id = $1 AND user_id = $2", [planId, user.id]);
+        await client.query("COMMIT");
+        return res.status(200).json({ message: "Roadmap and its saved tasks deleted." });
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+
+    if (req.method !== "GET") {
+      res.setHeader("Allow", "GET, DELETE");
+      return res.status(405).json({ error: "Method not allowed." });
+    }
     const { rows } = await db.query(
       `SELECT p.id, p.goal, p.start_date, p.created_at,
               COUNT(t.id)::int AS total_tasks,
