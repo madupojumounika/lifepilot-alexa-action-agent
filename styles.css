@@ -65,7 +65,7 @@
 
 /* Page-style workspace navigation */
 .nav-item{width:100%}.history-panel[hidden],.plan-panel[hidden],.agent-panel[hidden],[hidden].welcome,[hidden].voice-agent-card,[hidden].composer-card,[hidden].section-heading,[hidden].metrics,[hidden].work-grid,[hidden].footer{display:none!important}.work-grid:has(>.plan-panel[hidden]){grid-template-columns:minmax(0,1fr)}.work-grid:has(>.agent-panel[hidden]){grid-template-columns:minmax(0,1fr)}
-@media(max-width:850px){.nav-item{display:flex;font-size:0;justify-content:center;padding:14px 0}.nav-item .nav-count{display:none}.nav-item.active{outline:1px solid #d4dccb}}
+@media(max-width:850px){.nav-item{display:flex;font-size:11px;justify-content:flex-start;gap:9px;padding:12px 10px;white-space:nowrap}.nav-item .nav-count{display:inline-flex;margin-left:auto}.nav-item.active{outline:1px solid #d4dccb}}
 
 
 /* Keep named sidebar destinations visible on smaller screens. */
