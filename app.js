@@ -77,9 +77,30 @@
       const completed = plan.status === "completed";
       const pct = Number(plan.completion_percent || 0);
       const date = plan.created_at ? formatDate(new Date(plan.created_at), {year:"numeric",month:"short",day:"numeric"}) : "Date unavailable";
-      return '<article class="history-item"><div><h3>'+escapeHtml(plan.goal)+'</h3><p>Created '+escapeHtml(date)+' · '+Number(plan.completed_tasks)+'/'+Number(plan.total_tasks)+' tasks complete · '+pct+'%</p><div class="history-progress" aria-label="'+pct+' percent complete"><span style="width:'+pct+'%"></span></div></div><div class="history-item-actions"><span class="history-status '+(completed?'':'active')+'">'+(completed?'Completed':'In progress')+'</span><button type="button" class="history-open" data-history-plan="'+escapeHtml(plan.id)+'">Open roadmap ↗</button></div></article>';
+      return '<article class="history-item"><div><h3>'+escapeHtml(plan.goal)+'</h3><p>Created '+escapeHtml(date)+' · '+Number(plan.completed_tasks)+'/'+Number(plan.total_tasks)+' tasks complete · '+pct+'%</p><div class="history-progress" aria-label="'+pct+' percent complete"><span style="width:'+pct+'%"></span></div></div><div class="history-item-actions"><span class="history-status '+(completed?'':'active')+'">'+(completed?'Completed':'In progress')+'</span><button type="button" class="history-open" data-history-plan="'+escapeHtml(plan.id)+'">Open roadmap ↗</button><button type="button" class="history-delete" data-delete-plan="'+escapeHtml(plan.id)+'" aria-label="Delete roadmap: '+escapeHtml(plan.goal)+'">Delete</button></div></article>';
     }).join("");
     list.querySelectorAll("[data-history-plan]").forEach(button => button.addEventListener("click", () => openHistoricalPlan(button.dataset.historyPlan)));
+    list.querySelectorAll("[data-delete-plan]").forEach(button => button.addEventListener("click", () => deleteHistoricalPlan(button.dataset.deletePlan, button)));
+  }
+  async function deleteHistoricalPlan(planId, button) {
+    const plan = roadmapHistory.find(item => String(item.id) === String(planId));
+    if (!plan) return;
+    if (!window.confirm('Delete this roadmap and all its saved tasks? This cannot be undone.')) return;
+    button.disabled = true;
+    try {
+      await request("/api/history?planId=" + encodeURIComponent(planId), {method:"DELETE"});
+      if (String(currentPlan?.id) === String(planId)) {
+        currentPlan = null;
+        currentTasks = [];
+        renderTasks();
+        updateMetrics();
+      }
+      await refreshRoadmapHistory();
+      showToast("Roadmap deleted from your history.");
+    } catch (error) {
+      showToast(error.message || "Could not delete this roadmap.");
+      button.disabled = false;
+    }
   }
   async function refreshRoadmapHistory() {
     try {
