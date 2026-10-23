@@ -11,6 +11,8 @@
   <a href="https://lifepilot-alexa-action-agent.vercel.app/api/mcp"><strong>🔌 MCP Endpoint</strong></a>
   &nbsp; · &nbsp;
   <a href="https://github.com/madupojumounika/lifepilot-alexa-action-agent"><strong>💻 Source Code</strong></a>
+  &nbsp; · &nbsp;
+  <a href="https://drive.google.com/file/d/1HgAb2nu0Yx6G-0Tmv3SJNv_-7P_uxuzx/view?usp=sharing"><strong>🎬 Demo Video</strong></a>
 </p>
 
 <p align="center">
@@ -138,6 +140,7 @@ The MCP tools are designed as reusable planning utilities. The web workspace sep
 - **Application:** https://lifepilot-alexa-action-agent.vercel.app/
 - **MCP endpoint:** https://lifepilot-alexa-action-agent.vercel.app/api/mcp
 - **Repository:** https://github.com/madupojumounika/lifepilot-alexa-action-agent
+- **Video Demo:** https://drive.google.com/file/d/1HgAb2nu0Yx6G-0Tmv3SJNv_-7P_uxuzx
 
 The MCP URL is intended for MCP-compatible clients rather than as a standard browser page.
 
