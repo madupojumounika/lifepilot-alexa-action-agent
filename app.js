@@ -88,7 +88,9 @@
     if (!window.confirm('Delete this roadmap and all its saved tasks? This cannot be undone.')) return;
     button.disabled = true;
     try {
-      await request("/api/history?planId=" + encodeURIComponent(planId), {method:"DELETE"});
+      const response = await fetch("/api/history?planId=" + encodeURIComponent(planId), {method:"DELETE", credentials:"same-origin", headers:{"Accept":"application/json"}});
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not delete this roadmap.");
       if (String(currentPlan?.id) === String(planId)) {
         currentPlan = null;
         currentTasks = [];
