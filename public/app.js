@@ -2,6 +2,8 @@
   const $ = (id) => document.getElementById(id);
   const form = $("goal-form"), goalInput = $("goal-input"), planBtn = $("plan-btn");
   let currentPlan = null, currentTasks = [], busy = false, toastTimer, currentUser = null, authMode = "login";
+  let agentRoadmap = null, agentCompletedDays = [];
+  let roadmapHistory = [];
   const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
   const dateFromISO = (value) => { const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(Number(m[1]), Number(m[2])-1, Number(m[3])) : null; };
   const formatDate = (date, options={weekday:"short", month:"short", day:"numeric"}) => new Intl.DateTimeFormat(undefined, options).format(date);
@@ -37,6 +39,148 @@
     if (!response.ok) throw new Error(data.error || "Something went wrong. Please try again.");
     return data;
   }
+  // Conversational interface powered by the deployed LifePilot MCP tools.
+  const agentForm = $("voice-agent-form"), agentInput = $("voice-agent-input"), agentSend = $("voice-agent-send");
+  const agentConversation = $("voice-conversation");
+  function addAgentMessage(role, message, stamp) {
+    const item = document.createElement("div"); item.className = "voice-message " + (role === "user" ? "user-message" : "assistant-message");
+    const avatar = document.createElement("span"); avatar.className = "message-avatar"; avatar.textContent = role === "user" ? (currentUser?.display_name || "Y").trim().charAt(0).toUpperCase() : "L";
+    const body = document.createElement("div"); const name = document.createElement("strong"); name.textContent = role === "user" ? "You" : "LifePilot";
+    const paragraph = document.createElement("p"); paragraph.textContent = message; body.append(name, paragraph);
+    if (stamp) { const small = document.createElement("small"); small.textContent = stamp; body.append(small); }
+    item.append(avatar, body); agentConversation.append(item); agentConversation.scrollTop = agentConversation.scrollHeight; return body;
+  }
+  async function callMcpTool(name, args) {
+    const response = await fetch("/api/mcp", {method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json, text/event-stream","MCP-Protocol-Version":"2025-11-25"}, body:JSON.stringify({jsonrpc:"2.0",id:Date.now(),method:"tools/call",params:{name,arguments:args}})});
+    const raw = await response.text(); let payload;
+    try { payload = JSON.parse(raw); } catch (_) { const line = raw.split("\n").find(part => part.startsWith("data:")); if (line) { try { payload = JSON.parse(line.slice(5).trim()); } catch (_) {} } }
+    if (!response.ok) throw new Error(payload?.error?.message || "LifePilot could not reach its planning tools. Please try again.");
+    if (!payload) throw new Error("The planning service returned an unreadable response.");
+    if (payload.error) throw new Error(payload.error.message || "The planning tool returned an error.");
+    if (payload.result?.isError) { const text = payload.result.content?.find(part => part.type === "text")?.text; throw new Error(text || "The planning tool could not complete that request."); }
+    const text = payload.result?.content?.find(part => part.type === "text")?.text; if (!text) throw new Error("The planning tool returned no result.");
+    try { return JSON.parse(text); } catch (_) { return {message:text}; }
+  }
+  function renderRoadmapHistory(data) {
+    roadmapHistory = data.plans || [];
+    const summary = data.summary || {};
+    $("history-total").textContent = summary.totalRoadmaps || 0;
+    $("history-completed").textContent = summary.completedRoadmaps || 0;
+    $("history-active").textContent = summary.inProgressRoadmaps || 0;
+    $("history-count").textContent = summary.totalRoadmaps || 0;
+    const list = $("history-list");
+    if (!roadmapHistory.length) {
+      list.innerHTML = '<div class="history-empty">Your saved roadmaps will appear here as you create goals. Start with a goal above, and your journey will be recorded automatically.</div>';
+      return;
+    }
+    list.innerHTML = roadmapHistory.map(plan => {
+      const completed = plan.status === "completed";
+      const pct = Number(plan.completion_percent || 0);
+      const date = plan.created_at ? formatDate(new Date(plan.created_at), {year:"numeric",month:"short",day:"numeric"}) : "Date unavailable";
+      return '<article class="history-item"><div><h3>'+escapeHtml(plan.goal)+'</h3><p>Created '+escapeHtml(date)+' · '+Number(plan.completed_tasks)+'/'+Number(plan.total_tasks)+' tasks complete · '+pct+'%</p><div class="history-progress" aria-label="'+pct+' percent complete"><span style="width:'+pct+'%"></span></div></div><div class="history-item-actions"><span class="history-status '+(completed?'':'active')+'">'+(completed?'Completed':'In progress')+'</span><button type="button" class="history-open" data-history-plan="'+escapeHtml(plan.id)+'">Open roadmap ↗</button></div></article>';
+    }).join("");
+    list.querySelectorAll("[data-history-plan]").forEach(button => button.addEventListener("click", () => openHistoricalPlan(button.dataset.historyPlan)));
+  }
+  async function refreshRoadmapHistory() {
+    try {
+      const data = await request("/api/history");
+      renderRoadmapHistory(data);
+    } catch (error) {
+      $("history-list").innerHTML = '<div class="history-empty">'+escapeHtml(error.message || "Could not load roadmap history.")+'</div>';
+    }
+  }
+  async function openHistoricalPlan(planId) {
+    try {
+      const data = await request("/api/plan?planId="+encodeURIComponent(planId));
+      currentPlan = data.plan;
+      currentTasks = data.tasks || [];
+      goalInput.value = currentPlan?.goal || "";
+      renderTasks();
+      log("Previous roadmap opened", currentPlan.goal, "success", "HISTORY RESTORED");
+      setActiveView("roadmap");
+      window.scrollTo({top:0,behavior:"smooth"});
+      showToast("Previous roadmap loaded. You can continue tracking its tasks.");
+    } catch (error) { showToast(error.message || "Could not open that roadmap."); }
+  }
+  function addRoadmapCard(body, roadmap, savedPlanId) {
+    const card = document.createElement("div"); card.className = "voice-result-card";
+    const head = document.createElement("div"); head.className = "voice-result-head";
+    const title = document.createElement("span"); title.textContent = "YOUR 7-DAY ROADMAP"; const count = document.createElement("span"); count.textContent = (roadmap.tasks || []).length + " ACTIONS"; head.append(title,count); card.append(head);
+    (roadmap.tasks || []).forEach(task => {
+      const row = document.createElement("div"); row.className = "voice-result-task"; const day = document.createElement("span"); day.textContent = "D" + task.day;
+      const details = document.createElement("div"); const taskTitle = document.createElement("strong"); taskTitle.textContent = task.title;
+      const category = document.createElement("p"); category.textContent = task.category + " · " + task.durationMinutes + " min"; details.append(taskTitle,category);
+      const date = document.createElement("small"); date.textContent = task.date || ("DAY " + task.day); row.append(day,details,date); card.append(row);
+    });
+    const actions = document.createElement("div"); actions.className = "voice-result-actions";
+    const review = document.createElement("button"); review.type = "button"; review.textContent = "Open in My Roadmap ↗";
+    review.addEventListener("click", () => openHistoricalPlan(savedPlanId));
+    const next = document.createElement("button"); next.type = "button"; next.className = "secondary"; next.textContent = "Recommend next step"; next.addEventListener("click", () => runAgentAction("next"));
+    actions.append(review,next); card.append(actions); body.append(card);
+  }
+  async function runAgentAction(action, goalOverride) {
+    if (agentSend.disabled) return;
+    const goal = (goalOverride || agentRoadmap?.goal || goalInput.value || "").trim();
+    if (action !== "roadmap" && !agentRoadmap) { addAgentMessage("assistant", "Start by telling me your goal. I will create a roadmap first, then recommend a next step or calculate progress."); return; }
+    if (action === "roadmap" && goal.length < 8) { addAgentMessage("assistant", "Tell me a little more about what you want to achieve so I can prepare a useful roadmap."); return; }
+    agentSend.disabled = true; const previousLabel = agentSend.innerHTML; agentSend.innerHTML = "Working… <span>◌</span>";
+    try {
+      if (action === "history") {
+        const data = await request("/api/history");
+        renderRoadmapHistory(data);
+        const summary = data.summary || {};
+        addAgentMessage("assistant", "You have created "+(summary.totalRoadmaps||0)+" roadmaps so far. "+(summary.completedRoadmaps||0)+" are completed and "+(summary.inProgressRoadmaps||0)+" are still in progress. I have refreshed your saved roadmap history below.", "SAVED ROADMAP HISTORY");
+        setActiveView("history");
+      } else if (action === "roadmap") {
+        addAgentMessage("assistant", "I am mapping your goal into seven focused steps and saving it as a draft in your workspace. You can review and approve every action before tracking progress.", "MCP · GENERATE GOAL ROADMAP");
+        const result = await callMcpTool("generate_goal_roadmap", {goal:goal,startDate:todayISO()}); agentRoadmap = result; agentCompletedDays = [];
+        const saved = await request("/api/plan", {goal:goal,startDate:todayISO()});
+        currentPlan = saved.plan; currentTasks = saved.tasks || []; renderTasks(); updateMetrics(); refreshRoadmapHistory();
+        const body = addAgentMessage("assistant", "Your roadmap is ready and saved to your workspace: " + (result.tasks?.length || 7) + " focused actions for “" + (result.goal || goal) + "”. It is waiting for your review. Open My Roadmap to review and approve the saved tasks.", "ROADMAP SAVED · AWAITING REVIEW");
+        addRoadmapCard(body,result,saved.plan.id); setActiveView("roadmap"); speak("Your seven day roadmap is saved and ready for review. Open My Roadmap to approve it when you are ready.");
+      } else if (action === "next") {
+        const result = await callMcpTool("recommend_next_action", {goal:goal,completedDays:agentCompletedDays}); const next = result.nextAction;
+        if (!next) { addAgentMessage("assistant", "You have marked every day complete in this conversation. Review what you learned and choose your next goal.", "MCP · NEXT ACTION"); }
+        else {
+          const body = addAgentMessage("assistant", "I suggest starting with Day " + next.day + ": " + next.title + ". It is part of " + next.category + " and is estimated at " + next.durationMinutes + " minutes. Current roadmap progress: " + result.progressPercent + "%.", "MCP · NEXT ACTION RECOMMENDATION");
+          const actions = document.createElement("div"); actions.className = "voice-result-actions";
+          const done = document.createElement("button"); done.type = "button"; done.textContent = "Count Day " + next.day + " complete in this check";
+          done.addEventListener("click", async () => {
+            if (!agentCompletedDays.includes(next.day)) agentCompletedDays.push(next.day);
+            addAgentMessage("assistant", "Day " + next.day + " is counted as complete for this conversational progress check. Use the task controls in your workspace to persist task completion.", "LOCAL CONVERSATION STATE");
+            try { const statuses = Array.from({length:7}, (_,i) => agentCompletedDays.includes(i+1) ? "done" : "pending"); const progress = await callMcpTool("calculate_plan_progress", {statuses:statuses}); addAgentMessage("assistant", "Progress check: " + progress.done + " of " + progress.total + " days complete (" + progress.completionPercent + "%)."); } catch (error) { addAgentMessage("assistant", error.message); }
+          });
+          const progressBtn = document.createElement("button"); progressBtn.type = "button"; progressBtn.className = "secondary"; progressBtn.textContent = "Calculate progress"; progressBtn.addEventListener("click", () => runAgentAction("progress"));
+          actions.append(done,progressBtn); body.append(actions); speak("Your next step is " + next.title + ". It is estimated at " + next.durationMinutes + " minutes.");
+        }
+      } else if (action === "progress") {
+        const statuses = Array.from({length:7}, (_,i) => agentCompletedDays.includes(i+1) ? "done" : "pending"); const result = await callMcpTool("calculate_plan_progress", {statuses:statuses});
+        addAgentMessage("assistant", "Your conversational progress check is " + result.done + " of " + result.total + " days complete (" + result.completionPercent + "%). " + result.pending + " days remain pending. This check uses progress marked in this voice session; saved workspace tasks are tracked separately.", "MCP · PLAN PROGRESS");
+        speak("You have completed " + result.done + " out of " + result.total + " days, which is " + result.completionPercent + " percent.");
+      }
+    } catch (error) { addAgentMessage("assistant", error.message || "I could not complete that request. Please try again.", "PLEASE TRY AGAIN"); }
+    finally { agentSend.disabled = false; agentSend.innerHTML = previousLabel; }
+  }
+  function classifyAgentIntent(message) {
+    const text = message.toLowerCase();
+    if (/\b(history|previous roadmaps?|past goals?|all my goals|how many goals|roadmaps? (have i|did i) (complete|finish|create)|completed roadmaps?)\b/.test(text)) return "history";
+    if (/\b(progress|percentage|percent|how much.*done|how many.*complete|status)\b/.test(text)) return "progress";
+    if (/\b(next|what should i do|recommend|suggest|first step|up next)\b/.test(text)) return "next";
+    return "roadmap";
+  }
+  if (agentForm) agentForm.addEventListener("submit", event => { event.preventDefault(); const message = agentInput.value.trim(); if (!message) return; addAgentMessage("user", message, "YOUR REQUEST"); agentInput.value = ""; const intent = classifyAgentIntent(message); runAgentAction(intent, intent === "roadmap" ? message : undefined); });
+  document.querySelectorAll("[data-voice-prompt]").forEach(button => button.addEventListener("click", () => { const prompt = button.dataset.voicePrompt || ""; agentInput.value = prompt; addAgentMessage("user", prompt, "QUICK PROMPT"); runAgentAction("roadmap", prompt); }));
+  document.querySelectorAll("[data-voice-action]").forEach(button => button.addEventListener("click", () => { const action = button.dataset.voiceAction; addAgentMessage("user", action === "next" ? "What should I do next?" : "Show my plan progress.", "QUICK ACTION"); runAgentAction(action); }));
+  const agentMic = $("voice-agent-mic");
+  if (agentMic) agentMic.addEventListener("click", () => {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) { showToast("Voice input is not supported here. Type your request or try a supported browser."); return; }
+    const recognition = new Recognition(); recognition.lang = "en-US"; recognition.interimResults = false; recognition.maxAlternatives = 1; agentMic.disabled = true; agentMic.textContent = "…";
+    recognition.onresult = event => { const transcript = event.results?.[0]?.[0]?.transcript?.trim(); if (transcript) { agentInput.value = transcript; agentInput.focus(); showToast("Voice captured. Send your request when ready."); } };
+    recognition.onerror = event => showToast(event.error === "not-allowed" ? "Allow microphone access to use voice input." : "I could not capture that. Please try again or type your request.");
+    recognition.onend = () => { agentMic.disabled = false; agentMic.textContent = "◖"; };
+    try { recognition.start(); } catch (_) { agentMic.disabled = false; agentMic.textContent = "◖"; showToast("Voice input could not start. Please try again."); }
+  });
   function updateMetrics() {
     const done = currentTasks.filter(t => t.status === "done").length;
     $("metric-mission").textContent = currentPlan ? (currentPlan.goal.length > 22 ? currentPlan.goal.slice(0,22) + "…" : currentPlan.goal) : "—";
@@ -74,7 +218,7 @@
         const action = status === "done" ? "reopen" : "complete";
         const result = await request("/api/task", {taskId:btn.dataset.task, action});
         currentTasks = currentTasks.map(t => t.id === result.task.id ? result.task : t);
-        renderTasks(); updateMetrics();
+        renderTasks(); updateMetrics(); refreshRoadmapHistory();
         log(action === "reopen" ? "Action reopened" : "Action completed", result.task.title, action === "reopen" ? "normal" : "success", "PERSISTED TO TASK STORE");
         showToast(result.message);
       } catch(e) { showToast(e.message); btn.disabled = false; }
@@ -93,30 +237,94 @@
     e.preventDefault(); if (busy) return;
     const goal = goalInput.value.trim(); if (goal.length < 8) { showToast("Add a little more detail to your goal."); return; }
     busy = true; planBtn.disabled = true; planBtn.innerHTML = '<span>Building your plan…</span><span>◌</span>';
-    $("activity-list").innerHTML = "";
     log("Understanding your goal", "Reading your objective and timeline.", "normal", "STEP 1 OF 3");
     try {
       const data = await request("/api/plan", {goal, startDate:todayISO()});
       currentPlan = data.plan; currentTasks = data.tasks || [];
       log("Plan created", "Generated "+currentTasks.length+" daily actions with categories and time estimates.", "success", "STEP 2 OF 3");
       log("Waiting for your approval", "No task was marked approved or completed. You stay in control.", "normal", "STEP 3 OF 3");
-      renderTasks(); showToast("Your action plan is ready for review."); speak("Your seven day action plan is ready. Please review it and approve before marking any action complete.");
-      $("plan-panel").scrollIntoView({behavior:"smooth",block:"nearest"});
+      renderTasks(); refreshRoadmapHistory(); showToast("Your action plan is ready for review."); speak("Your seven day action plan is ready. Please review it and approve before marking any action complete.");
+      setActiveView("roadmap");
+      window.scrollTo({top:0,behavior:"smooth"});
     } catch(err) { log("Could not create the plan", err.message, "normal", "ACTION NEEDED"); showToast(err.message); }
     finally { busy = false; planBtn.disabled = false; planBtn.innerHTML = '<span>Build my action plan</span><span>↗</span>'; }
   });
   $("approve-btn").addEventListener("click", async () => {
-    if (!currentPlan || !currentTasks.length || currentTasks.some(t => t.status === "pending") === false) return;
     const btn = $("approve-btn"); btn.disabled = true;
     try {
-      const data = await request("/api/task", {taskId:"all", action:"approve_all"});
+      // Always resolve the selected roadmap from the authenticated server before approval.
+      // Voice-generated drafts and a freshly refreshed page can leave client state empty or stale.
+      if (currentPlan?.id) {
+        const selected = await request("/api/plan?planId=" + encodeURIComponent(currentPlan.id));
+        if (selected.plan?.id && (selected.tasks || []).length) {
+          currentPlan = selected.plan;
+          currentTasks = selected.tasks;
+        } else {
+          currentPlan = null;
+          currentTasks = [];
+        }
+      }
+      if (!currentPlan?.id || !currentTasks.length) {
+        const latest = await request("/api/plan");
+        if (latest.plan?.id && (latest.tasks || []).length) {
+          currentPlan = latest.plan;
+          currentTasks = latest.tasks;
+        }
+      }
+      // If the user has described a goal but no roadmap was saved yet, save it first
+      // so the approval action works from the primary goal composer too.
+      if ((!currentPlan?.id || !currentTasks.length) && goalInput.value.trim().length >= 8) {
+        const saved = await request("/api/plan", {goal: goalInput.value.trim(), startDate: todayISO()});
+        currentPlan = saved.plan;
+        currentTasks = saved.tasks || [];
+        refreshRoadmapHistory();
+        log("Plan saved for approval", "Saved the current goal before applying your approval.", "success", "ROADMAP SAVED");
+      }
+      if (!currentPlan?.id || !currentTasks.length) {
+        showToast("Create a roadmap first, then approve its saved actions.");
+        setActiveView("roadmap");
+        return;
+      }
+      renderTasks();
+      if (!currentTasks.some(t => t.status === "pending")) {
+        showToast("This roadmap has no pending tasks to approve.");
+        return;
+      }
+      const data = await request("/api/task", {taskId:"all", planId:currentPlan.id, action:"approve_all"});
       currentTasks = data.tasks || [];
-      renderTasks(); log("Plan approved by you", data.message, "success", "APPROVAL RECORDED"); showToast(data.message); speak("Plan approved. You can now mark actions complete as you do them.");
-    } catch(e) { showToast(e.message); btn.disabled = false; }
+      renderTasks(); refreshRoadmapHistory(); log("Plan approved by you", data.message, "success", "APPROVAL RECORDED"); showToast(data.message); speak("Plan approved. You can now mark actions complete as you do them.");
+    } catch(e) { showToast(e.message); }
+    finally { btn.disabled = false; }
   });
-  $("nav-overview").addEventListener("click", () => { $("top").scrollIntoView({behavior:"smooth",block:"start"}); window.scrollTo({top:0,behavior:"smooth"}); });
-  $("nav-plan").addEventListener("click", () => $("plan-panel").scrollIntoView({behavior:"smooth",block:"start"}));
-  $("nav-activity").addEventListener("click", () => $("activity-list").scrollIntoView({behavior:"smooth",block:"center"}));
+  const pageViews = {
+    overview: { title: "Overview", show: ["welcome", "voice-agent-card", "composer-card", "section-heading", "metrics", "work-grid", "plan-panel", "agent-panel", "footer"] },
+    roadmap: { title: "My Roadmap", show: ["composer-card", "work-grid", "plan-panel", "footer"] },
+    activity: { title: "Activity", show: ["work-grid", "agent-panel", "footer"] },
+    history: { title: "Roadmap History", show: ["history-panel", "footer"] }
+  };
+  function setActiveView(view, updateUrl = true) {
+    const page = pageViews[view] || pageViews.overview;
+    const all = ["welcome", "voice-agent-card", "composer-card", "section-heading", "metrics", "history-panel", "work-grid", "plan-panel", "agent-panel", "footer"];
+    const nodes = Object.fromEntries(all.map(id => [id, id === "welcome" ? document.querySelector(".welcome") : id === "voice-agent-card" ? document.querySelector(".voice-agent-card") : id === "composer-card" ? document.querySelector(".composer-card") : id === "section-heading" ? document.querySelector(".section-heading") : id === "metrics" ? document.querySelector(".metrics") : id === "history-panel" ? $("history-panel") : id === "work-grid" ? document.querySelector(".work-grid") : id === "plan-panel" ? $("plan-panel") : id === "agent-panel" ? document.querySelector(".agent-panel") : document.querySelector(".footer")]));
+    all.forEach(id => { if (nodes[id]) nodes[id].hidden = !page.show.includes(id); });
+    document.querySelectorAll(".nav-item").forEach(button => {
+      const active = button.id === ({overview:"nav-overview",roadmap:"nav-plan",activity:"nav-activity",history:"nav-history"}[view]);
+      button.classList.toggle("active", active);
+      if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
+    });
+    $("breadcrumb-current").textContent = page.title;
+    if (updateUrl && location.hash !== "#" + view) history.replaceState(null, "", "#" + view);
+    window.scrollTo({top:0,behavior:"smooth"});
+    if (view === "history") refreshRoadmapHistory();
+    if (view === "activity") $("activity-list").scrollTop = 0;
+  }
+  $("nav-overview").addEventListener("click", () => setActiveView("overview"));
+  $("nav-plan").addEventListener("click", () => setActiveView("roadmap"));
+  $("nav-activity").addEventListener("click", () => setActiveView("activity"));
+  $("nav-history").addEventListener("click", () => setActiveView("history"));
+  $("nav-history-top").addEventListener("click", () => setActiveView("history"));
+  window.addEventListener("hashchange", () => setActiveView(location.hash.slice(1), false));
+  $("refresh-history").addEventListener("click", refreshRoadmapHistory);
   $("help-btn").addEventListener("click", () => $("help-dialog").showModal());
   $("close-help").addEventListener("click", () => $("help-dialog").close());
   $("help-dialog").addEventListener("click", (e) => { if (e.target === $("help-dialog")) $("help-dialog").close(); });
@@ -189,7 +397,9 @@
     $("profile-email").textContent = user.email || "Signed in";
     $("avatar-letter").textContent = (user.display_name || user.email || "L").trim().charAt(0).toUpperCase();
     renderWeekDates();
+    setActiveView(["overview","roadmap","activity","history"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview", false);
     loadLatest();
+    refreshRoadmapHistory();
   }
   function leaveWorkspace() {
     currentUser = null;
