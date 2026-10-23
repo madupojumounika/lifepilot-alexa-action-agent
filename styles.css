@@ -95,3 +95,10 @@
   .top-actions .status-pill{display:none}
   .top-actions .logout-top{font-size:8px;padding:6px}
 }
+
+
+/* Keep every workspace destination discoverable, including roadmap history. */
+.sidebar .nav-item{display:flex!important;align-items:center;visibility:visible;opacity:1;min-height:40px;overflow:visible;color:var(--ink,#26352a);font-size:11px!important;line-height:1.4;white-space:nowrap}
+.sidebar #nav-history{display:flex!important;visibility:visible;opacity:1}
+.sidebar .nav-item .nav-symbol{display:inline-flex;flex:0 0 18px;align-items:center;justify-content:center}
+.sidebar .nav-item .nav-count{display:inline-flex;align-items:center;justify-content:center;margin-left:auto}
