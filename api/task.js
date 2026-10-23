@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     const db = getPool();
     if (action === "approve_all") {
       const planId = String(req.body?.planId || "").trim();
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(planId)) return res.status(400).json({ error: "Choose a valid roadmap before approving it." });
+      if (!planId || planId.length > 200) return res.status(400).json({ error: "Open a saved roadmap before approving it." });
       const { rows: plans } = await db.query("SELECT id FROM lifepilot_plans WHERE user_id = $1 AND id = $2 LIMIT 1", [user.id, planId]);
       if (!plans.length) return res.status(404).json({ error: "That roadmap was not found in your workspace." });
       const { rows: changed } = await db.query(
